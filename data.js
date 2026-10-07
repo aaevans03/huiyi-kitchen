@@ -5,7 +5,7 @@
 //   id        short key used on every recipe and in page URLs (category.html?kind=rice)
 //   label     text people see
 //   onHome    true = shown as a group of buttons on the home page (a top-level organization)
-//   asFilter  true = shown as checkbox filters on category pages
+//   asFilter  true = shown as toggle-button filters above the recipes on category pages
 //             (hidden on pages of that same attribute, and when it can't narrow the list)
 //   required  true = every recipe must have at least one value
 //   values    [id, label] pairs, in display order
@@ -20,7 +20,7 @@
 //   predictedFirstClick (optional; a home-page button label)
 
 window.SITE_DATA = {
-  siteName: "Website Name",
+  siteName: "Huiyi Kitchen",
 
   attributes: [
     {

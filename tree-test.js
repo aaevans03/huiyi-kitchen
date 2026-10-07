@@ -269,8 +269,9 @@
   function describe(node) {
     if (node.matches("button.card")) return { action: "card", label: node.getAttribute("data-name") };
     if (node.id === "clear-filters") return { action: "clear filters", label: "Clear filters" };
-    if (node.matches("input[type=checkbox]")) {
-      return { action: node.checked ? "filter on" : "filter off", label: node.getAttribute("data-label") || node.value };
+    if (node.matches("button.toggle")) {
+      // This runs before the page toggles the button, so aria-pressed is still the old state.
+      return { action: node.getAttribute("aria-pressed") === "true" ? "filter off" : "filter on", label: node.getAttribute("data-label") };
     }
     if (node.matches("a")) return { action: "link", label: clean(node.textContent) };
     return null;

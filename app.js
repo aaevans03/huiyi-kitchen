@@ -188,28 +188,25 @@
       });
     });
 
-    if (filterAttrs.length === 0) {
-      document.querySelector(".filters").hidden = true;
-      document.querySelector(".layout").classList.add("no-filters");
-    }
+    var filterBox = document.querySelector(".filters");
+    if (filterAttrs.length === 0) filterBox.hidden = true;
 
+    // Each filter option is a toggle button; black = selected.
     var form = document.getElementById("filters");
     filterAttrs.forEach(function (attr) {
-      var fieldset = el("fieldset");
-      fieldset.appendChild(el("legend", null, attr.label));
+      var group = el("div", { class: "filter-group", role: "group", "aria-label": attr.label });
+      group.appendChild(el("span", { class: "filter-name" }, attr.label));
       attr.values.forEach(function (value) {
-        var id = "f-" + attr.id + "-" + value[0];
-        var row = el("div", { class: "option" });
-        row.appendChild(el("input", {
-          type: "checkbox", id: id, name: attr.id, value: value[0],
+        var btn = el("button", {
+          type: "button", class: "toggle", "aria-pressed": "false",
+          "data-attr": attr.id, "data-value": value[0],
           "data-label": attr.label + ": " + value[1],
-        }));
-        var lab = el("label", { for: id }, value[1] + " ");
-        lab.appendChild(el("span", { class: "count", "data-attr": attr.id, "data-value": value[0] }));
-        row.appendChild(lab);
-        fieldset.appendChild(row);
+        });
+        btn.appendChild(document.createTextNode(value[1] + " "));
+        btn.appendChild(el("span", { class: "count" }));
+        group.appendChild(btn);
       });
-      form.appendChild(fieldset);
+      form.appendChild(group);
     });
     var clear = el("button", { type: "button", id: "clear-filters" }, "Clear filters");
     form.appendChild(clear);
@@ -220,8 +217,8 @@
     function render() {
       // Within a filter: match any. Across filters: match all.
       var selected = filterAttrs.map(function (attr) {
-        var checked = form.querySelectorAll("input[name='" + attr.id + "']:checked");
-        return { attr: attr, ids: Array.prototype.map.call(checked, function (c) { return c.value; }) };
+        var on = form.querySelectorAll("button.toggle[data-attr='" + attr.id + "'][aria-pressed='true']");
+        return { attr: attr, ids: Array.prototype.map.call(on, function (b) { return b.getAttribute("data-value"); }) };
       }).filter(function (s) { return s.ids.length > 0; });
 
       function matches(recipe, s) {
@@ -241,7 +238,7 @@
         });
         attr.values.forEach(function (value) {
           var n = pool.filter(function (r) { return valuesOf(r, attr).indexOf(value[0]) !== -1; }).length;
-          form.querySelector(".count[data-attr='" + attr.id + "'][data-value='" + value[0] + "']").textContent = "(" + n + ")";
+          form.querySelector("button.toggle[data-attr='" + attr.id + "'][data-value='" + value[0] + "'] .count").textContent = "(" + n + ")";
         });
       });
 
@@ -265,9 +262,14 @@
         (inCategory.length === 1 ? " recipe" : " recipes");
     }
 
-    form.addEventListener("change", render);
+    form.addEventListener("click", function (e) {
+      var btn = e.target.closest("button.toggle");
+      if (!btn) return;
+      btn.setAttribute("aria-pressed", btn.getAttribute("aria-pressed") === "true" ? "false" : "true");
+      render();
+    });
     clear.addEventListener("click", function () {
-      form.querySelectorAll("input[type=checkbox]").forEach(function (c) { c.checked = false; });
+      form.querySelectorAll("button.toggle").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
       render();
     });
     render();
