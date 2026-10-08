@@ -122,9 +122,12 @@
       return;
     }
     openDialog(function (dlg) {
-      dlg.appendChild(el("h2", null, "Participant"));
-      dlg.appendChild(el("p", null, "Moderator: enter the participant's name, then start."));
-      var label = el("label", { for: "tt-name" }, "Participant name");
+      dlg.appendChild(el("h2", null, "Before you start"));
+      dlg.appendChild(el("p", null, "You'll be asked to find " + tasks.length + " recipes on this website, one at a time."));
+      dlg.appendChild(el("p", null, "Click around the way you normally would. When you find the recipe, click its card, and press submit."));
+      dlg.appendChild(el("p", null, "If you can't find it, click \"I give up\" at the bottom of the screen. That helps us too."));
+      dlg.appendChild(el("p", null, "We're testing the website, not you."));
+      var label = el("label", { for: "tt-name" }, "Moderator: participant name");
       var input = el("input", { type: "text", id: "tt-name", autocomplete: "off" });
       var start = el("button", { type: "button" }, "Start");
       function go() {
