@@ -427,6 +427,14 @@
 
   window.TreeTest = {
     init: function () {
+      // Hide ?test and ?results from the address bar once they've been read.
+      if (params.has("test") || params.has("results")) {
+        var rest = new URLSearchParams(window.location.search);
+        rest.delete("test");
+        rest.delete("results");
+        var q = rest.toString();
+        window.history.replaceState(null, "", window.location.pathname + (q ? "?" + q : "") + window.location.hash);
+      }
       if (mode === "results") {
         // Opening results releases this tab from any session.
         setTabSession(null);
