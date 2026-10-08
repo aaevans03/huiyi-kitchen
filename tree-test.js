@@ -290,6 +290,9 @@
     if (!node || node.closest("#tt-bar") || node.closest("dialog")) return;
     var info = describe(node);
     if (!info) return;
+    // Clicking the selected card again is logged as a deselect.
+    var recipe = info.action === "card" ? info.label : null;
+    if (recipe && session.current.selected === recipe) info = { action: "deselect", label: "Deselect " + recipe };
     var now = Date.now();
     var ev = session.current.events;
     ev.push({
@@ -302,10 +305,10 @@
       at: now,
     });
     saveSession();
-    if (info.action === "card") {
+    if (recipe) {
       e.preventDefault();
       var cur = session.current;
-      cur.selected = cur.selected === info.label ? null : info.label;
+      cur.selected = info.action === "deselect" ? null : recipe;
       cur.selectedPage = pageName();
       saveSession();
       refreshSelection();
