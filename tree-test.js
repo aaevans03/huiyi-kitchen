@@ -106,6 +106,16 @@
     return dlg;
   }
 
+  // An X in the corner that closes the screen and brings back the "Run tree test" button.
+  function addCloseButton(dlg) {
+    var x = el("button", { type: "button", class: "tt-close", id: "tt-close", "aria-label": "Close" }, "X");
+    x.addEventListener("click", function () {
+      closeDialog();
+      showRunButton();
+    });
+    dlg.appendChild(x);
+  }
+
   function closeDialog() {
     var dlg = document.getElementById("tt-dialog");
     if (dlg) dlg.remove();
@@ -113,18 +123,34 @@
 
   // ---------- session flow ----------
 
+  // Button in the corner of the regular site that opens the tree test.
+  function showRunButton() {
+    if (document.getElementById("tt-run")) return;
+    var btn = el("button", { type: "button", id: "tt-run", class: "tt-run" }, "Run tree test");
+    btn.addEventListener("click", function () {
+      btn.remove();
+      showStart();
+    });
+    document.body.appendChild(btn);
+  }
+
   function showStart() {
     if (!tasks.length) {
       openDialog(function (dlg) {
+        addCloseButton(dlg);
         dlg.appendChild(el("h2", null, "No tasks yet"));
         dlg.appendChild(el("p", null, "Add tasks to data.js (see the comment at the top), then reload."));
       });
       return;
     }
     openDialog(function (dlg) {
-      dlg.appendChild(el("h2", null, "Participant"));
-      dlg.appendChild(el("p", null, "Moderator: enter the participant's name, then start."));
-      var label = el("label", { for: "tt-name" }, "Participant name");
+      addCloseButton(dlg);
+      dlg.appendChild(el("h2", null, "Before you start"));
+      dlg.appendChild(el("p", null, "You'll be asked to find " + tasks.length + " recipes on this website, one at a time."));
+      dlg.appendChild(el("p", null, "Click around the way you normally would. When you find the recipe, click its card, and press submit."));
+      dlg.appendChild(el("p", null, "If you can't find it, click \"I give up\" at the bottom of the screen. That helps us too."));
+      dlg.appendChild(el("p", null, "We're testing the website, not you."));
+      var label = el("label", { for: "tt-name" }, "Moderator: participant name");
       var input = el("input", { type: "text", id: "tt-name", autocomplete: "off" });
       var start = el("button", { type: "button" }, "Start");
       function go() {
@@ -150,7 +176,6 @@
       order: shuffle(tasks.map(function (t) { return String(t.id); })),
       pos: 0,
       current: null,
-      awaitingNext: false,
       done: [],
     };
     saveSession();
@@ -161,8 +186,7 @@
 
   // Begins the current task from the home page.
   function startTask() {
-    session.current = { start: Date.now(), events: [] };
-    session.awaitingNext = false;
+    session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
     saveSession();
     var onPlainHome = document.body.getAttribute("data-page") === "home" && !window.location.search;
     if (onPlainHome) {
@@ -183,12 +207,16 @@
     document.body.classList.add("tt-active");
     var bar = el("div", { class: "tt-bar", id: "tt-bar" });
     bar.appendChild(el("p", { class: "tt-task" }, "Task " + (session.pos + 1) + " of " + session.order.length + ": " + task.text));
+    var submit = el("button", { type: "button", id: "tt-submit", class: "tt-submit" }, "Submit and continue");
+    submit.hidden = !session.current.selected;
+    submit.addEventListener("click", function () { finishTask(session.current.selected); });
     var giveUp = el("button", { type: "button", id: "tt-give-up" }, "I give up");
     giveUp.addEventListener("click", function () { finishTask(null); });
     var end = el("button", { type: "button", id: "tt-end" }, "End session");
     end.addEventListener("click", function () {
       if (window.confirm("End this session early? Results so far are kept.")) endSession("ended early");
     });
+    bar.appendChild(submit);
     bar.appendChild(giveUp);
     bar.appendChild(end);
     document.body.appendChild(bar);
@@ -221,38 +249,27 @@
       events: cur.events,
     });
     session.current = null;
-    session.awaitingNext = true;
-    saveSession();
-    showResult();
-  }
-
-  function showResult() {
-    removeBar();
-    var last = session.done[session.done.length - 1];
-    var isLast = session.pos + 1 >= session.order.length;
-    openDialog(function (dlg) {
-      dlg.appendChild(el("p", null, last.selected ? "You selected " + last.selected + "." : "You gave up on this task."));
-      var next = el("button", { type: "button", id: "tt-next" }, isLast ? "Finish" : "Next task");
-      next.addEventListener("click", function () {
-        session.pos++;
-        session.awaitingNext = false;
-        if (session.pos >= session.order.length) endSession("complete");
-        else { closeDialog(); startTask(); }
-      });
-      dlg.appendChild(next);
-    });
+    session.pos++;
+    if (session.pos >= session.order.length) {
+      endSession("complete");
+    } else {
+      saveSession();
+      startTask();
+    }
   }
 
   function endSession(status) {
     session.status = status;
     session.current = null;
-    session.awaitingNext = false;
     saveSession();
     setTabSession(null);
     removeBar();
     openDialog(function (dlg) {
       dlg.appendChild(el("h2", null, status === "complete" ? "Thank you" : "Session ended"));
       dlg.appendChild(el("p", null, "This session is finished. Please let the moderator know."));
+      var again = el("button", { type: "button", id: "tt-new-participant" }, "Start next participant");
+      again.addEventListener("click", showStart);
+      dlg.appendChild(again);
     });
     session = null;
   }
@@ -278,12 +295,27 @@
     return null;
   }
 
+  // Shows which card is selected and whether the submit button is available.
+  function refreshSelection() {
+    var chosen = session && session.current ? session.current.selected : null;
+    document.querySelectorAll("button.card").forEach(function (b) {
+      var on = b.getAttribute("data-name") === chosen;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var submit = document.getElementById("tt-submit");
+    if (submit) submit.hidden = !chosen;
+  }
+
   function onClick(e) {
     if (!session || !session.current) return;
     var node = e.target.closest("a, button, input");
     if (!node || node.closest("#tt-bar") || node.closest("dialog")) return;
     var info = describe(node);
     if (!info) return;
+    // Clicking the selected card again is logged as a deselect.
+    var recipe = info.action === "card" ? info.label : null;
+    if (recipe && session.current.selected === recipe) info = { action: "deselect", label: "Deselect " + recipe };
     var now = Date.now();
     var ev = session.current.events;
     ev.push({
@@ -296,9 +328,13 @@
       at: now,
     });
     saveSession();
-    if (info.action === "card") {
+    if (recipe) {
       e.preventDefault();
-      finishTask(info.label);
+      var cur = session.current;
+      cur.selected = info.action === "deselect" ? null : recipe;
+      cur.selectedPage = pageName();
+      saveSession();
+      refreshSelection();
     }
   }
 
@@ -427,6 +463,14 @@
 
   window.TreeTest = {
     init: function () {
+      // Hide ?test and ?results from the address bar once they've been read.
+      if (params.has("test") || params.has("results")) {
+        var rest = new URLSearchParams(window.location.search);
+        rest.delete("test");
+        rest.delete("results");
+        var q = rest.toString();
+        window.history.replaceState(null, "", window.location.pathname + (q ? "?" + q : "") + window.location.hash);
+      }
       if (mode === "results") {
         // Opening results releases this tab from any session.
         setTabSession(null);
@@ -436,17 +480,22 @@
       session = findActiveSession();
       document.addEventListener("click", onClick, true);
       if (session) {
-        if (session.awaitingNext) showResult();
-        else {
-          if (!session.current) session.current = { start: Date.now(), events: [] };
-          renderBar();
-        }
+        if (!session.current) session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
+        // A selection only counts on the page it was made on.
+        if (session.current.selected && session.current.selectedPage !== pageName()) session.current.selected = null;
+        renderBar();
+        refreshSelection();
       } else if (params.has("test")) {
         showStart();
+      } else {
+        showRunButton();
       }
     },
     cardsClickable: function () {
-      return mode !== "results" && (!!session || !!findActiveSession()) && !(session && session.awaitingNext);
+      return mode !== "results" && (!!session || !!findActiveSession());
+    },
+    selectedName: function () {
+      return session && session.current ? session.current.selected : null;
     },
   };
 })();

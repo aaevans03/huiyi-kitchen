@@ -29,8 +29,9 @@
 
   function byName(a, b) { return a.name.localeCompare(b.name); }
 
-  // English on one line, Chinese on the next.
+  // Placeholder photo (horizontal), then English on one line and Chinese on the next.
   function fillLabel(node, recipe) {
+    node.appendChild(el("span", { class: "card-image", "aria-hidden": "true" }));
     node.appendChild(el("span", { class: "en" }, recipe.name));
     node.appendChild(el("span", { class: "zh" }, recipe.zh));
   }
@@ -257,7 +258,11 @@
       shown.forEach(function (recipe) {
         if (clickable) {
           var slot = el("li", { class: "card-slot" });
-          var btn = el("button", { type: "button", class: "card", "data-name": recipe.name });
+          var chosen = window.TreeTest.selectedName() === recipe.name;
+          var btn = el("button", {
+            type: "button", class: chosen ? "card selected" : "card",
+            "data-name": recipe.name, "aria-pressed": chosen ? "true" : "false",
+          });
           fillLabel(btn, recipe);
           slot.appendChild(btn);
           grid.appendChild(slot);
