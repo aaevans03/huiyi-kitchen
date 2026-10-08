@@ -95,6 +95,15 @@
       targets.forEach(function (t) {
         if (!names[t]) problems.push(label + ": target \"" + t + "\" is not a recipe");
       });
+      if (task.paths != null) {
+        if (!Array.isArray(task.paths)) problems.push(label + ": paths should be a list of lists");
+        else task.paths.forEach(function (path, j) {
+          var pl = label + " path #" + (j + 1);
+          if (!Array.isArray(path) || path.length < 2) { problems.push(pl + ": needs at least two labels"); return; }
+          if (buttons.indexOf(path[0]) === -1) problems.push(pl + ": starts with \"" + path[0] + "\", which is not a home-page button");
+          if (!names[path[path.length - 1]]) problems.push(pl + ": ends with \"" + path[path.length - 1] + "\", which is not a recipe");
+        });
+      }
       if (task.predictedFirstClick && buttons.indexOf(task.predictedFirstClick) === -1) {
         problems.push(label + ": predicted first click \"" + task.predictedFirstClick + "\" is not a home-page button");
       }

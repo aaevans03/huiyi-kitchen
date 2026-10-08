@@ -15,9 +15,17 @@
 // and a list of values for every attribute id. An empty list ([]) means the recipe
 // is not reachable through that attribute.
 //
-// TASKS are the tree-test scenarios (used by index.html?test):
-//   id, text (what the participant reads), targets (recipe names that count as found),
-//   predictedFirstClick (optional; a home-page button label)
+// TASKS are the tree-test scenarios (used by index.html?test). Order is shuffled for
+// each participant, so the order here doesn't matter. Each task:
+//   id                   unique, e.g. "1" (appears in the results)
+//   text                 what the participant reads (the task description)
+//   predictedFirstClick  the home-page button we expect them to click first, written
+//                        exactly as it appears ("Rice", "Taiwan", ...)
+//   targets              recipe names that count as found; reaching any one is a success.
+//                        English name exactly as in RECIPES
+//   paths                the routes we expect, each a list of labels from first click to the
+//                        recipe. Filters are written "Group: Option"
+//   rationale            why we wrote it (for the team only; never shown or exported)
 
 window.SITE_DATA = {
   siteName: "Huiyi Kitchen",
@@ -126,7 +134,19 @@ window.SITE_DATA = {
     { name: "Mee Goreng (Southeast Asian Fried Noodles)", zh: "馬來炒麵", kind: ["noodles"], region: ["singapore-malaysia"], ingredient: ["egg", "vegetables"], time: ["lunch-dinner"], custom: [] },
   ],
 
-  // The team writes these. Example shape:
-  // { id: "1", text: "You want ...", targets: ["Congee"], predictedFirstClick: "Rice" },
-  tasks: [],
+  // The team writes these. Copy this shape for each task:
+tasks: [
+  {
+    id: "1",
+    text: "You want something warm and easy to eat for breakfast.",
+    predictedFirstClick: "Rice",
+    targets: ["Congee"],
+    paths: [
+      ["Rice", "Congee"],
+      ["Soups", "Congee"],
+      ["Rice", "Time of day typically eaten: Breakfast", "Congee"],
+    ],
+    rationale: "Congee is a splitter (Rice vs Soups); the professor asked for 'other' dishes.",
+  },
+],
 };
