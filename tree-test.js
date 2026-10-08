@@ -213,6 +213,7 @@
       text: task.text,
       targets: targets,
       predictedFirstClick: task.predictedFirstClick || "",
+      paths: task.paths || [],
       outcome: outcome,
       selected: selected || "",
       seconds: secs(Date.now() - cur.start),
@@ -306,7 +307,7 @@
   var COLUMNS = [
     "participant", "name", "session_start", "session_status",
     "task_position", "task_id", "task_text", "targets", "outcome", "selected",
-    "task_seconds", "task_clicks", "predicted_first_click", "first_click", "first_click_matches_prediction",
+    "task_seconds", "task_clicks", "expected_paths", "predicted_first_click", "first_click", "first_click_matches_prediction",
     "click_number", "action", "label", "page", "seconds_since_task_start", "seconds_since_previous",
   ];
 
@@ -318,6 +319,7 @@
           participant: s.id, name: s.name, session_start: formatDateTime(s.started), session_status: s.status,
           task_position: t.position, task_id: t.taskId, task_text: t.text, targets: t.targets.join(" | "),
           outcome: t.outcome, selected: t.selected, task_seconds: t.seconds, task_clicks: t.events.length,
+          expected_paths: (t.paths || []).map(function (p) { return p.join(" > "); }).join(" | "),
           predicted_first_click: t.predictedFirstClick, first_click: t.firstClick,
           first_click_matches_prediction: t.predictedFirstClick ? (t.firstClick === t.predictedFirstClick ? "yes" : "no") : "",
         };
