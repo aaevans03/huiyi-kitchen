@@ -150,7 +150,6 @@
       order: shuffle(tasks.map(function (t) { return String(t.id); })),
       pos: 0,
       current: null,
-      awaitingNext: false,
       done: [],
     };
     saveSession();
@@ -161,8 +160,7 @@
 
   // Begins the current task from the home page.
   function startTask() {
-    session.current = { start: Date.now(), events: [] };
-    session.awaitingNext = false;
+    session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
     saveSession();
     var onPlainHome = document.body.getAttribute("data-page") === "home" && !window.location.search;
     if (onPlainHome) {
@@ -183,12 +181,16 @@
     document.body.classList.add("tt-active");
     var bar = el("div", { class: "tt-bar", id: "tt-bar" });
     bar.appendChild(el("p", { class: "tt-task" }, "Task " + (session.pos + 1) + " of " + session.order.length + ": " + task.text));
+    var submit = el("button", { type: "button", id: "tt-submit", class: "tt-submit" }, "Submit and continue");
+    submit.hidden = !session.current.selected;
+    submit.addEventListener("click", function () { finishTask(session.current.selected); });
     var giveUp = el("button", { type: "button", id: "tt-give-up" }, "I give up");
     giveUp.addEventListener("click", function () { finishTask(null); });
     var end = el("button", { type: "button", id: "tt-end" }, "End session");
     end.addEventListener("click", function () {
       if (window.confirm("End this session early? Results so far are kept.")) endSession("ended early");
     });
+    bar.appendChild(submit);
     bar.appendChild(giveUp);
     bar.appendChild(end);
     document.body.appendChild(bar);
@@ -221,32 +223,18 @@
       events: cur.events,
     });
     session.current = null;
-    session.awaitingNext = true;
-    saveSession();
-    showResult();
-  }
-
-  function showResult() {
-    removeBar();
-    var last = session.done[session.done.length - 1];
-    var isLast = session.pos + 1 >= session.order.length;
-    openDialog(function (dlg) {
-      dlg.appendChild(el("p", null, last.selected ? "You selected " + last.selected + "." : "You gave up on this task."));
-      var next = el("button", { type: "button", id: "tt-next" }, isLast ? "Finish" : "Next task");
-      next.addEventListener("click", function () {
-        session.pos++;
-        session.awaitingNext = false;
-        if (session.pos >= session.order.length) endSession("complete");
-        else { closeDialog(); startTask(); }
-      });
-      dlg.appendChild(next);
-    });
+    session.pos++;
+    if (session.pos >= session.order.length) {
+      endSession("complete");
+    } else {
+      saveSession();
+      startTask();
+    }
   }
 
   function endSession(status) {
     session.status = status;
     session.current = null;
-    session.awaitingNext = false;
     saveSession();
     setTabSession(null);
     removeBar();
@@ -281,6 +269,18 @@
     return null;
   }
 
+  // Shows which card is selected and whether the submit button is available.
+  function refreshSelection() {
+    var chosen = session && session.current ? session.current.selected : null;
+    document.querySelectorAll("button.card").forEach(function (b) {
+      var on = b.getAttribute("data-name") === chosen;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var submit = document.getElementById("tt-submit");
+    if (submit) submit.hidden = !chosen;
+  }
+
   function onClick(e) {
     if (!session || !session.current) return;
     var node = e.target.closest("a, button, input");
@@ -301,7 +301,11 @@
     saveSession();
     if (info.action === "card") {
       e.preventDefault();
-      finishTask(info.label);
+      var cur = session.current;
+      cur.selected = cur.selected === info.label ? null : info.label;
+      cur.selectedPage = pageName();
+      saveSession();
+      refreshSelection();
     }
   }
 
@@ -447,17 +451,20 @@
       session = findActiveSession();
       document.addEventListener("click", onClick, true);
       if (session) {
-        if (session.awaitingNext) showResult();
-        else {
-          if (!session.current) session.current = { start: Date.now(), events: [] };
-          renderBar();
-        }
+        if (!session.current) session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
+        // A selection only counts on the page it was made on.
+        if (session.current.selected && session.current.selectedPage !== pageName()) session.current.selected = null;
+        renderBar();
+        refreshSelection();
       } else if (params.has("test")) {
         showStart();
       }
     },
     cardsClickable: function () {
-      return mode !== "results" && (!!session || !!findActiveSession()) && !(session && session.awaitingNext);
+      return mode !== "results" && (!!session || !!findActiveSession());
+    },
+    selectedName: function () {
+      return session && session.current ? session.current.selected : null;
     },
   };
 })();

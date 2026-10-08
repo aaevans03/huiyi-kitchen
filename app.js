@@ -258,7 +258,11 @@
       shown.forEach(function (recipe) {
         if (clickable) {
           var slot = el("li", { class: "card-slot" });
-          var btn = el("button", { type: "button", class: "card", "data-name": recipe.name });
+          var chosen = window.TreeTest.selectedName() === recipe.name;
+          var btn = el("button", {
+            type: "button", class: chosen ? "card selected" : "card",
+            "data-name": recipe.name, "aria-pressed": chosen ? "true" : "false",
+          });
           fillLabel(btn, recipe);
           slot.appendChild(btn);
           grid.appendChild(slot);
