@@ -29,8 +29,9 @@
 
   function byName(a, b) { return a.name.localeCompare(b.name); }
 
-  // English on one line, Chinese on the next.
+  // Placeholder photo (horizontal), then English on one line and Chinese on the next.
   function fillLabel(node, recipe) {
+    node.appendChild(el("span", { class: "card-image", "aria-hidden": "true" }));
     node.appendChild(el("span", { class: "en" }, recipe.name));
     node.appendChild(el("span", { class: "zh" }, recipe.zh));
   }
