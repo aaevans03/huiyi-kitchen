@@ -253,6 +253,9 @@
     openDialog(function (dlg) {
       dlg.appendChild(el("h2", null, status === "complete" ? "Thank you" : "Session ended"));
       dlg.appendChild(el("p", null, "This session is finished. Please let the moderator know."));
+      var again = el("button", { type: "button", id: "tt-new-participant" }, "Start next participant");
+      again.addEventListener("click", showStart);
+      dlg.appendChild(again);
     });
     session = null;
   }
