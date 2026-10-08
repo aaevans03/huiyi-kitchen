@@ -106,6 +106,16 @@
     return dlg;
   }
 
+  // An X in the corner that closes the screen and brings back the "Run tree test" button.
+  function addCloseButton(dlg) {
+    var x = el("button", { type: "button", class: "tt-close", id: "tt-close", "aria-label": "Close" }, "X");
+    x.addEventListener("click", function () {
+      closeDialog();
+      showRunButton();
+    });
+    dlg.appendChild(x);
+  }
+
   function closeDialog() {
     var dlg = document.getElementById("tt-dialog");
     if (dlg) dlg.remove();
@@ -113,15 +123,28 @@
 
   // ---------- session flow ----------
 
+  // Button in the corner of the regular site that opens the tree test.
+  function showRunButton() {
+    if (document.getElementById("tt-run")) return;
+    var btn = el("button", { type: "button", id: "tt-run", class: "tt-run" }, "Run tree test");
+    btn.addEventListener("click", function () {
+      btn.remove();
+      showStart();
+    });
+    document.body.appendChild(btn);
+  }
+
   function showStart() {
     if (!tasks.length) {
       openDialog(function (dlg) {
+        addCloseButton(dlg);
         dlg.appendChild(el("h2", null, "No tasks yet"));
         dlg.appendChild(el("p", null, "Add tasks to data.js (see the comment at the top), then reload."));
       });
       return;
     }
     openDialog(function (dlg) {
+      addCloseButton(dlg);
       dlg.appendChild(el("h2", null, "Before you start"));
       dlg.appendChild(el("p", null, "You'll be asked to find " + tasks.length + " recipes on this website, one at a time."));
       dlg.appendChild(el("p", null, "Click around the way you normally would. When you find the recipe, click its card, and press submit."));
@@ -464,6 +487,8 @@
         refreshSelection();
       } else if (params.has("test")) {
         showStart();
+      } else {
+        showRunButton();
       }
     },
     cardsClickable: function () {
