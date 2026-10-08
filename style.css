@@ -53,10 +53,7 @@ button.card:hover { text-decoration: underline; }
   aspect-ratio: 16 / 9;
   margin-bottom: 12px;
   border: 1px solid #000;
-  background:
-    linear-gradient(to top right, transparent calc(50% - 1px), #000 50%, transparent calc(50% + 1px)),
-    linear-gradient(to bottom right, transparent calc(50% - 1px), #000 50%, transparent calc(50% + 1px)),
-    #eee;
+  background: #ddd;
 }
 
 .problems { border: 3px double #000; padding: 12px 16px; margin: 0 0 16px; }
