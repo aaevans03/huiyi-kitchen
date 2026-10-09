@@ -176,6 +176,7 @@
       order: shuffle(tasks.map(function (t) { return String(t.id); })),
       pos: 0,
       current: null,
+      awaitingStart: false,
       done: [],
     };
     saveSession();
@@ -184,19 +185,39 @@
     startTask();
   }
 
-  // Begins the current task from the home page.
+  // Gets the home page ready for the current task, then shows the task popup.
+  // The task clock starts only after the participant confirms (beginTask).
   function startTask() {
-    session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
+    session.current = null;
+    session.awaitingStart = true;
     saveSession();
-    var onPlainHome = document.body.getAttribute("data-page") === "home" && !window.location.search;
-    if (onPlainHome) {
-      renderBar();
-    } else if (document.body.getAttribute("data-page") === "home") {
+    var page = document.body.getAttribute("data-page");
+    if (page === "home" && !window.location.search) {
+      showIntro();
+    } else if (page === "home") {
       window.history.replaceState(null, "", "index.html");
-      renderBar();
+      showIntro();
     } else {
       window.location.replace("index.html");
     }
+  }
+
+  function showIntro() {
+    var task = taskById(session.order[session.pos]);
+    openDialog(function (dlg) {
+      dlg.appendChild(el("h2", null, "Task " + (session.pos + 1) + " of " + session.order.length));
+      dlg.appendChild(el("p", null, task.text));
+      var go = el("button", { type: "button", id: "tt-begin" }, "Start task");
+      go.addEventListener("click", beginTask);
+      dlg.appendChild(go);
+    });
+  }
+
+  function beginTask() {
+    session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
+    session.awaitingStart = false;
+    saveSession();
+    renderBar();
   }
 
   function renderBar() {
@@ -480,6 +501,7 @@
       session = findActiveSession();
       document.addEventListener("click", onClick, true);
       if (session) {
+        if (session.awaitingStart) { startTask(); return; }
         if (!session.current) session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
         // A selection only counts on the page it was made on.
         if (session.current.selected && session.current.selectedPage !== pageName()) session.current.selected = null;
@@ -492,7 +514,7 @@
       }
     },
     cardsClickable: function () {
-      return mode !== "results" && (!!session || !!findActiveSession());
+      return mode !== "results" && (!!session || !!findActiveSession()) && !(session && session.awaitingStart);
     },
     selectedName: function () {
       return session && session.current ? session.current.selected : null;
