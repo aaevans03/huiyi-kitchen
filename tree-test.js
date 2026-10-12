@@ -465,7 +465,6 @@
     main.appendChild(table);
 
     // By task: every participant's attempt at the same task, so patterns are easy to compare.
-    main.appendChild(el("h2", null, "Results by task"));
     var attempts = [];
     var taskById = {};
     state.sessions.forEach(function (s) {
@@ -475,13 +474,17 @@
       });
     });
     var taskIds = Object.keys(taskById).sort(function (a, b) { return a - b || (a < b ? -1 : a > b ? 1 : 0); });
-    var filterLabel = el("label", { for: "tt-task-filter" }, "Filter by task: ");
+    var filterLabel = el("label", { for: "tt-task-filter" }, "Organize by: ");
     var filter = el("select", { id: "tt-task-filter" });
-    filter.appendChild(el("option", { value: "" }, "All tasks"));
+    filter.appendChild(el("option", { value: "" }, "All tasks (by participant)"));
     taskIds.forEach(function (id) { filter.appendChild(el("option", { value: id }, "Task " + id + ": " + taskById[id])); });
     var byTask = el("div", { id: "tt-by-task" });
+    var byParticipant = el("div", { id: "tt-by-participant" });
     function drawByTask() {
       byTask.innerHTML = "";
+      // "All tasks" keeps the per-participant layout; a single task shows every participant's attempt at it.
+      byParticipant.hidden = !!filter.value;
+      if (!filter.value) return;
       var shown = attempts.filter(function (a) { return !filter.value || String(a.d.taskId) === filter.value; });
       // Group by task (in task order); within a task keep participants in session order.
       shown = shown.map(function (a, i) { return { a: a, i: i }; }).sort(function (x, y) {
@@ -507,11 +510,11 @@
     filterBox.appendChild(filter);
     main.appendChild(filterBox);
     main.appendChild(byTask);
+    main.appendChild(byParticipant);
     drawByTask();
 
-    main.appendChild(el("h2", null, "Results by participant"));
     state.sessions.forEach(function (s) {
-      main.appendChild(el("h3", null, s.id + " " + s.name));
+      byParticipant.appendChild(el("h2", null, s.id + " " + s.name));
       var t = el("table", { class: "tt-table" });
       var h = el("tr");
       ["#", "Task", "Outcome", "Selected", "Seconds", "Clicks", "First click", "Path"].forEach(function (c) { h.appendChild(el("th", null, c)); });
@@ -522,7 +525,7 @@
          d.events.map(function (ev) { return ev.label; }).join(" > ")].forEach(function (v) { tr.appendChild(el("td", null, v)); });
         t.appendChild(tr);
       });
-      main.appendChild(t);
+      byParticipant.appendChild(t);
     });
   }
 
