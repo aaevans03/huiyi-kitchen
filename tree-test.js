@@ -464,8 +464,57 @@
     });
     main.appendChild(table);
 
+    // By task: every participant's attempt at the same task, so patterns are easy to compare.
+    var attempts = [];
+    var taskById = {};
     state.sessions.forEach(function (s) {
-      main.appendChild(el("h2", null, s.id + " " + s.name));
+      s.done.forEach(function (d) {
+        attempts.push({ name: s.name, d: d });
+        taskById[d.taskId] = d.text;
+      });
+    });
+    var taskIds = Object.keys(taskById).sort(function (a, b) { return a - b || (a < b ? -1 : a > b ? 1 : 0); });
+    var filterLabel = el("label", { for: "tt-task-filter" }, "Organize by: ");
+    var filter = el("select", { id: "tt-task-filter" });
+    filter.appendChild(el("option", { value: "" }, "All tasks (by participant)"));
+    taskIds.forEach(function (id) { filter.appendChild(el("option", { value: id }, "Task " + id + ": " + taskById[id])); });
+    var byTask = el("div", { id: "tt-by-task" });
+    var byParticipant = el("div", { id: "tt-by-participant" });
+    function drawByTask() {
+      byTask.innerHTML = "";
+      // "All tasks" keeps the per-participant layout; a single task shows every participant's attempt at it.
+      byParticipant.hidden = !!filter.value;
+      if (!filter.value) return;
+      var shown = attempts.filter(function (a) { return !filter.value || String(a.d.taskId) === filter.value; });
+      // Group by task (in task order); within a task keep participants in session order.
+      shown = shown.map(function (a, i) { return { a: a, i: i }; }).sort(function (x, y) {
+        var tx = taskIds.indexOf(String(x.a.d.taskId)), ty = taskIds.indexOf(String(y.a.d.taskId));
+        return tx - ty || x.i - y.i;
+      }).map(function (o) { return o.a; });
+      if (!shown.length) { byTask.appendChild(el("p", null, "No attempts for this task yet.")); return; }
+      var bt = el("table", { class: "tt-table" });
+      var bh = el("tr");
+      ["#", "Participant", "Task", "Outcome", "Selected", "Seconds", "Clicks", "First click", "Path"].forEach(function (c) { bh.appendChild(el("th", null, c)); });
+      bt.appendChild(bh);
+      shown.forEach(function (a) {
+        var d = a.d, tr = el("tr");
+        [d.position, a.name, d.text, d.outcome, d.selected, d.seconds, d.events.length, d.firstClick,
+         d.events.map(function (ev) { return ev.label; }).join(" > ")].forEach(function (v) { tr.appendChild(el("td", null, v)); });
+        bt.appendChild(tr);
+      });
+      byTask.appendChild(bt);
+    }
+    filter.addEventListener("change", drawByTask);
+    var filterBox = el("p");
+    filterBox.appendChild(filterLabel);
+    filterBox.appendChild(filter);
+    main.appendChild(filterBox);
+    main.appendChild(byTask);
+    main.appendChild(byParticipant);
+    drawByTask();
+
+    state.sessions.forEach(function (s) {
+      byParticipant.appendChild(el("h2", null, s.id + " " + s.name));
       var t = el("table", { class: "tt-table" });
       var h = el("tr");
       ["#", "Task", "Outcome", "Selected", "Seconds", "Clicks", "First click", "Path"].forEach(function (c) { h.appendChild(el("th", null, c)); });
@@ -476,7 +525,7 @@
          d.events.map(function (ev) { return ev.label; }).join(" > ")].forEach(function (v) { tr.appendChild(el("td", null, v)); });
         t.appendChild(tr);
       });
-      main.appendChild(t);
+      byParticipant.appendChild(t);
     });
   }
 
