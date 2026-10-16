@@ -5,6 +5,7 @@
 //
 // IMAGES     Unsplash photo ids (the part after "photo-"), used as placeholders.
 // LABELS_ZH  Chinese label and pinyin for each attribute value (by value id).
+//            Region values also list their flags: files in assets/flags/ (Twemoji, CC-BY 4.0).
 // SEARCH     per recipe: pinyin of the Chinese name, plus extra words people might type
 //            (simplified characters, other names).
 // DETAILS    per recipe: full bilingual recipe. A recipe without details still gets a
@@ -56,7 +57,7 @@ window.SITE_CONTENT = {
     },
   },
 
-  // [Chinese label, pinyin, flag]. The flag is only used on the home page region buttons.
+  // [Chinese label, pinyin, flags]. Flags are only used on the home page region buttons.
   labelsZh: {
     kind: {
       "rice": ["米飯", "mi fan"],
@@ -69,10 +70,10 @@ window.SITE_CONTENT = {
       "snack": ["小吃", "xiao chi"],
     },
     region: {
-      "mainland": ["中國", "zhong guo", "🇨🇳"],
-      "taiwan": ["台灣", "tai wan", "🇹🇼"],
-      "hong-kong": ["香港", "xiang gang", "🇭🇰"],
-      "singapore-malaysia": ["新加坡／馬來西亞", "xin jia po ma lai xi ya", "🇸🇬 🇲🇾"],
+      "mainland": ["中國", "zhong guo", ["cn"]],
+      "taiwan": ["台灣", "tai wan", ["tw"]],
+      "hong-kong": ["香港", "xiang gang", ["hk"]],
+      "singapore-malaysia": ["新加坡／馬來西亞", "xin jia po ma lai xi ya", ["sg", "my"]],
     },
     ingredient: {
       "pork": ["豬肉", "zhu rou"],

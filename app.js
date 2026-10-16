@@ -47,10 +47,10 @@
 
   function hasValue(recipe, attr, valueId) { return valuesOf(recipe, attr).indexOf(valueId) !== -1; }
 
-  // [Chinese, pinyin, emoji] for an attribute value, or blanks.
+  // [Chinese, pinyin, flags] for an attribute value, or blanks.
   function zhOf(attrId, valueId) {
     var group = content.labelsZh[attrId] || {};
-    return group[valueId] || ["", "", ""];
+    return group[valueId] || ["", "", []];
   }
 
   function byName(a, b) { return a.name.localeCompare(b.name); }
@@ -125,7 +125,14 @@
     var path = parts.join("/");
     main.innerHTML = "";
 
-    if (parts.length === 0) buildHome(route.params);
+    // A random recipe; replacing the address keeps "back" pointing at the page before.
+    if (path === "random") {
+      var pick = data.recipes[Math.floor(Math.random() * data.recipes.length)];
+      window.location.replace(hashFor(["recipe", slugOf(pick)]));
+      return;
+    }
+
+    if (parts.length === 0) buildHome();
     else if (path === "recipes") buildListing(null, route.params);
     else if (path === "about") buildAbout();
     else if (path === "contact") buildContact();
@@ -139,6 +146,12 @@
       if (lastPath !== null) main.focus({ preventScroll: true });
     }
     lastPath = path;
+    // Pages with a search box start with it focused, so people can just type.
+    var box = main.querySelector("input[type=search]");
+    if (box) {
+      box.focus({ preventScroll: true });
+      box.setSelectionRange(box.value.length, box.value.length);
+    }
     if (window.TreeTest && window.TreeTest.routeChanged) window.TreeTest.routeChanged();
   }
 
@@ -271,64 +284,63 @@
 
   // ---------- home ----------
 
-  function buildHome(params) {
+  // The home page only leads somewhere: search goes to the recipes page, a country
+  // goes to that region's page, a recipe type goes to its category page.
+  function buildHome() {
     setPage("home");
     var regionAttr = attrById("region");
     var kindAttr = data.attributes.filter(function (a) { return a.onHome && a.id !== "region"; })[0];
-    var query = params.get("q") || "";
-    var activeRegions = (params.get("region") || "").split(",").filter(function (id) {
-      return regionAttr && findValue(regionAttr, id);
-    });
 
-    // Search card
     var hero = el("section", { class: "hero" });
     var card = el("div", { class: "search-card" });
     card.appendChild(el("h1", null, "Find Recipes"));
     card.appendChild(el("p", { class: "search-hint" }, "Search in English, 中文, or pinyin"));
-    var form = el("form", { class: "search-form", role: "search" });
-    var label = el("label", { for: "search-input", class: "visually-hidden" }, "Search recipes");
-    var input = el("input", {
-      type: "search", id: "search-input", name: "q", autocomplete: "off",
-      placeholder: window.matchMedia("(max-width: 720px)").matches
-        ? "Dishes, ingredients, keywords…"
-        : "Search ingredients, dishes, or keywords…",
-      value: query,
-    });
-    var submit = el("button", { type: "submit", class: "btn-primary", "data-log": "search" }, "Search");
-    form.appendChild(label);
-    form.appendChild(input);
-    form.appendChild(submit);
-    card.appendChild(form);
+    card.appendChild(searchForm("", "home"));
     hero.appendChild(card);
 
-    // Region filters
-    var regions = el("div", { class: "region-filters", role: "group", "aria-label": "Filter by region" });
-    if (regionAttr) regionAttr.values.forEach(function (value) {
-      var zh = zhOf("region", value[0]);
-      var on = activeRegions.indexOf(value[0]) !== -1;
-      var pill = el("button", {
-        type: "button", class: "pill region-pill", "aria-pressed": on ? "true" : "false",
-        "data-value": value[0], "data-log": "toggle", "data-label": value[1],
+    if (regionAttr) {
+      var regions = el("nav", { class: "region-links", "aria-label": "Recipes by region" });
+      regionAttr.values.forEach(function (value) {
+        var zh = zhOf("region", value[0]);
+        var a = el("a", {
+          class: "region-link", href: hashFor([regionAttr.id, value[0]]),
+          "data-log": "link", "data-label": value[1],
+        });
+        if (zh[2] && zh[2].length) {
+          var flags = el("span", { class: "flags", "aria-hidden": "true" });
+          zh[2].forEach(function (code) {
+            flags.appendChild(el("img", { src: "assets/flags/" + code + ".svg", alt: "", width: "36", height: "36" }));
+          });
+          a.appendChild(flags);
+        }
+        var names = el("span", { class: "region-names" });
+        // "Singapore/Malaysia" may wrap after the slash on narrow screens.
+        var en = el("span", { class: "en" });
+        value[1].split("/").forEach(function (part, i) {
+          if (i > 0) { en.appendChild(document.createTextNode("/")); en.appendChild(el("wbr")); }
+          en.appendChild(document.createTextNode(part));
+        });
+        names.appendChild(en);
+        if (zh[0]) names.appendChild(el("span", { class: "zh", lang: "zh-Hant" }, zh[0]));
+        a.appendChild(names);
+        regions.appendChild(a);
       });
-      if (zh[2]) pill.appendChild(el("span", { class: "flag", "aria-hidden": "true" }, zh[2]));
-      pill.appendChild(el("span", null, value[1]));
-      if (zh[0]) pill.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh[0]));
-      regions.appendChild(pill);
-    });
-    hero.appendChild(regions);
+      var random = el("a", { class: "region-link random-link", href: "#/random", "data-log": "link", "data-label": "Random recipe" });
+      random.appendChild(shuffleIcon());
+      var rnames = el("span", { class: "region-names" });
+      rnames.appendChild(el("span", { class: "en" }, "Random recipe"));
+      rnames.appendChild(el("span", { class: "zh", lang: "zh-Hant" }, "隨機食譜"));
+      random.appendChild(rnames);
+      regions.appendChild(random);
+      hero.appendChild(regions);
+    }
     main.appendChild(hero);
 
-    // Results (only when searching or a region is on)
-    var results = el("section", { class: "results", "aria-live": "polite" });
-    main.appendChild(results);
-
-    // Browse by recipe type
     if (kindAttr) {
       var browse = el("section", { class: "browse", "aria-labelledby": "browse-title" });
       browse.appendChild(el("h2", { id: "browse-title", class: "section-title" }, "Browse by Recipe Type"));
       var grid = el("ul", { class: "category-grid" });
       kindAttr.values.forEach(function (value) {
-        var count = data.recipes.filter(function (r) { return hasValue(r, kindAttr, value[0]); }).length;
         var zh = zhOf(kindAttr.id, value[0]);
         var li = el("li");
         var a = el("a", {
@@ -337,11 +349,8 @@
         });
         a.appendChild(thumb(content.images.category[value[0]], 700, ""));
         var strip = el("span", { class: "card-label" });
-        var names = el("span", { class: "card-names" });
-        names.appendChild(el("span", { class: "en" }, value[1]));
-        if (zh[0]) names.appendChild(el("span", { class: "zh", lang: "zh-Hant" }, zh[0]));
-        strip.appendChild(names);
-        strip.appendChild(el("span", { class: "count" }, plural(count, "recipe")));
+        strip.appendChild(el("span", { class: "en" }, value[1]));
+        if (zh[0]) strip.appendChild(el("span", { class: "zh", lang: "zh-Hant" }, zh[0]));
         a.appendChild(strip);
         li.appendChild(a);
         grid.appendChild(li);
@@ -349,69 +358,49 @@
       browse.appendChild(grid);
       main.appendChild(browse);
     }
+  }
 
-    function update(pushUrl) {
-      var q = input.value.trim();
-      var on = Array.prototype.filter.call(regions.querySelectorAll(".region-pill"), function (b) {
-        return b.getAttribute("aria-pressed") === "true";
-      }).map(function (b) { return b.getAttribute("data-value"); });
-      submit.setAttribute("data-label", "Search: " + q);
-
-      if (pushUrl) {
-        var p = new URLSearchParams();
-        if (q) p.set("q", q);
-        if (on.length) p.set("region", on.join(","));
-        replaceParams(p);
-      }
-
-      results.innerHTML = "";
-      if (!q && !on.length) { results.hidden = true; return; }
-      results.hidden = false;
-
-      var found = search(q).filter(function (r) {
-        return !on.length || on.some(function (id) { return hasValue(r, regionAttr, id); });
-      });
-
-      var head = el("div", { class: "results-head" });
-      var title = el("h2", { class: "section-title" });
-      title.appendChild(document.createTextNode(plural(found.length, "recipe")));
-      var context = [];
-      if (q) context.push("matching “" + q + "”");
-      if (on.length) context.push("from " + on.map(function (id) { return findValue(regionAttr, id)[1]; }).join(" or "));
-      if (context.length) title.appendChild(el("span", { class: "results-context" }, " " + context.join(" ")));
-      head.appendChild(title);
-      var clear = el("button", { type: "button", class: "btn-ghost", "data-log": "clear search", "data-label": "Clear search" }, "Clear");
-      clear.addEventListener("click", function () {
-        input.value = "";
-        regions.querySelectorAll(".region-pill").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
-        update(true);
-        input.focus();
-      });
-      head.appendChild(clear);
-      results.appendChild(head);
-
-      if (found.length) {
-        results.appendChild(recipeGrid(found, null));
-      } else {
-        results.appendChild(el("p", { class: "empty" }, "No recipes found. Try another word, like a dish name, an ingredient, or pinyin (niu rou mian)."));
-      }
-    }
-
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      update(true);
-      if (!results.hidden) results.scrollIntoView({ behavior: "smooth", block: "start" });
+  function shuffleIcon() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", "shuffle-icon");
+    svg.setAttribute("aria-hidden", "true");
+    ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"].forEach(function (d) {
+      var path = document.createElementNS(ns, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
     });
+    return svg;
+  }
+
+  // Search box. On the home page, searching opens the recipes page; on the recipes
+  // page (where = "recipes") the page filters as you type, so the caller handles it.
+  function searchForm(query, where) {
+    var form = el("form", { class: "search-form" + (where === "home" ? "" : " search-form-compact"), role: "search" });
+    var id = "search-" + where;
+    form.appendChild(el("label", { for: id, class: "visually-hidden" }, "Search recipes"));
+    var narrow = window.matchMedia("(max-width: 720px)").matches;
+    var input = el("input", {
+      type: "search", id: id, name: "q", autocomplete: "off",
+      placeholder: narrow || where !== "home" ? "Dishes, ingredients, keywords…" : "Search ingredients, dishes, or keywords…",
+    });
+    input.value = query;
+    var submit = el("button", { type: "submit", class: "btn-primary", "data-log": "search", "data-label": "Search: " + query }, "Search");
+    form.appendChild(input);
+    form.appendChild(submit);
     input.addEventListener("input", function () {
       submit.setAttribute("data-label", "Search: " + input.value.trim());
     });
-    regions.addEventListener("click", function (e) {
-      var pill = e.target.closest(".region-pill");
-      if (!pill) return;
-      pill.setAttribute("aria-pressed", pill.getAttribute("aria-pressed") === "true" ? "false" : "true");
-      update(true);
-    });
-    update(false);
+    if (where === "home") {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var p = new URLSearchParams();
+        if (input.value.trim()) p.set("q", input.value.trim());
+        window.location.hash = hashFor(["recipes"], p);
+      });
+    }
+    return form;
   }
 
   // ---------- listing (one category, or every recipe) ----------
@@ -430,8 +419,9 @@
       filterAttrs = data.attributes.filter(function (a) { return a.asFilter && a.id !== category.attr.id; });
       setPage("category", title);
     } else {
-      title = "All Recipes";
+      title = "Recipes";
       zhTitle = "全部食譜";
+      from = "recipes";
       recipes = data.recipes.slice();
       filterAttrs = data.attributes.slice();
       setPage("recipes", title);
@@ -452,6 +442,14 @@
     if (zhTitle) h1.appendChild(el("span", { class: "title-zh", lang: "zh-Hant" }, zhTitle));
     head.appendChild(h1);
     main.appendChild(head);
+
+    // Only the recipes page has a search box; it narrows the list as you type.
+    var query = category ? "" : (params.get("q") || "").trim();
+    var form = null;
+    if (!category) {
+      form = searchForm(query, "recipes");
+      head.appendChild(form);
+    }
 
     var layout = el("div", { class: "listing" + (filterAttrs.length ? "" : " no-filters") });
     var aside = el("aside", { class: "filters", "aria-labelledby": "filters-title" });
@@ -503,12 +501,14 @@
 
     function update(pushUrl) {
       var sel = selected();
-      var shown = recipes.filter(function (r) { return sel.every(function (s) { return matches(r, s); }); });
+      // Searching keeps the best matches first; otherwise A to Z.
+      var base = query ? search(query).filter(function (r) { return recipes.indexOf(r) !== -1; }) : recipes;
+      var shown = base.filter(function (r) { return sel.every(function (s) { return matches(r, s); }); });
 
       // Count beside each option: what would match if it were on, given the other filters.
       filterAttrs.forEach(function (attr) {
         var others = sel.filter(function (s) { return s.attr !== attr; });
-        var pool = recipes.filter(function (r) { return others.every(function (s) { return matches(r, s); }); });
+        var pool = base.filter(function (r) { return others.every(function (s) { return matches(r, s); }); });
         attr.values.forEach(function (value) {
           var n = pool.filter(function (r) { return hasValue(r, attr, value[0]); }).length;
           var btn = aside.querySelector("button.toggle[data-attr='" + attr.id + "'][data-value='" + value[0] + "']");
@@ -520,16 +520,29 @@
 
       if (pushUrl) {
         var p = new URLSearchParams();
+        if (query) p.set("q", query);
         sel.forEach(function (s) { p.set(s.attr.id, s.ids.join(",")); });
         replaceParams(p);
       }
 
-      countEl.textContent = sel.length
-        ? "Showing " + shown.length + " of " + plural(recipes.length, "recipe")
-        : plural(recipes.length, "recipe");
+      if (query) countEl.textContent = plural(shown.length, "recipe") + " matching “" + query + "”";
+      else if (sel.length) countEl.textContent = "Showing " + shown.length + " of " + plural(recipes.length, "recipe");
+      else countEl.textContent = plural(recipes.length, "recipe");
       gridHolder.innerHTML = "";
       if (shown.length) gridHolder.appendChild(recipeGrid(shown, from));
-      else gridHolder.appendChild(el("p", { class: "empty" }, "No recipes match these filters."));
+      else gridHolder.appendChild(el("p", { class: "empty" }, query
+        ? "No recipes found. Try a dish name, an ingredient, or pinyin (niu rou mian)."
+        : "No recipes match these filters."));
+    }
+
+    if (form) {
+      var input = form.querySelector("input");
+      var setQuery = function () {
+        query = input.value.trim();
+        update(true);
+      };
+      input.addEventListener("input", setQuery);
+      form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
     }
 
     aside.addEventListener("click", function (e) {
@@ -574,10 +587,11 @@
 
     // Breadcrumb: the category the reader came from, or the recipe's first kind of dish.
     var crumbs = [{ text: "Home", href: "#/" }];
+    if (params.get("from") === "recipes") crumbs.push({ text: "Recipes", href: "#/recipes" });
     var from = (params.get("from") || "").split(":");
     var fromAttr = attrById(from[0]);
     var fromValue = fromAttr && hasValue(recipe, fromAttr, from[1]) ? findValue(fromAttr, from[1]) : null;
-    if (!fromValue && kindAttr && valuesOf(recipe, kindAttr).length) {
+    if (!fromValue && crumbs.length === 1 && kindAttr && valuesOf(recipe, kindAttr).length) {
       fromAttr = kindAttr;
       fromValue = findValue(kindAttr, valuesOf(recipe, kindAttr)[0]);
     }
