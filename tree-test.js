@@ -191,14 +191,12 @@
     session.current = null;
     session.awaitingStart = true;
     saveSession();
-    var page = document.body.getAttribute("data-page");
-    if (page === "home" && !window.location.search) {
-      showIntro();
-    } else if (page === "home") {
-      window.history.replaceState(null, "", "index.html");
+    // Each task starts from a fresh home page (no search, filters, or other view).
+    var hash = window.location.hash;
+    if (!window.location.search && (!hash || hash === "#" || hash === "#/")) {
       showIntro();
     } else {
-      window.location.replace("index.html");
+      window.location.replace(window.location.pathname);
     }
   }
 
@@ -297,16 +295,24 @@
 
   // ---------- click logging ----------
 
+  // The view, e.g. "#/kind/noodles?ingredient=beef" (the site is one page; views live after the #).
   function pageName() {
-    var q = new URLSearchParams(window.location.search);
-    q.delete("test");
-    var file = window.location.pathname.split("/").pop() || "index.html";
-    var s = q.toString();
-    return file + (s ? "?" + s : "");
+    return window.location.hash || "#/";
+  }
+
+  // The view without its search or filter settings. A selection only counts on the view it was made on.
+  function viewName() {
+    return pageName().split("?")[0];
   }
 
   function describe(node) {
     if (node.matches("button.card")) return { action: "card", label: node.getAttribute("data-name") };
+    // app.js marks what to log: data-log is the action, data-label the label.
+    if (node.hasAttribute("data-log")) {
+      var action = node.getAttribute("data-log");
+      if (action === "toggle") action = node.getAttribute("aria-pressed") === "true" ? "filter off" : "filter on";
+      return { action: action, label: node.getAttribute("data-label") || clean(node.textContent) };
+    }
     if (node.id === "clear-filters") return { action: "clear filters", label: "Clear filters" };
     if (node.matches("button.toggle")) {
       // This runs before the page toggles the button, so aria-pressed is still the old state.
@@ -353,7 +359,7 @@
       e.preventDefault();
       var cur = session.current;
       cur.selected = info.action === "deselect" ? null : recipe;
-      cur.selectedPage = pageName();
+      cur.selectedPage = viewName();
       saveSession();
       refreshSelection();
     }
@@ -409,10 +415,10 @@
 
   function buildResults() {
     document.title = "Tree test results | " + data.siteName;
-    document.getElementById("site-name").textContent = data.siteName;
-    document.getElementById("breadcrumb").textContent = "Tree test results";
+    document.body.setAttribute("data-page", "results");
     var main = document.querySelector("main");
     main.innerHTML = "";
+    main.className = "tt-results";
     main.appendChild(el("h1", null, "Tree test results"));
     var state = loadState();
     if (!storageOk) main.appendChild(el("p", { class: "problems", role: "alert" }, "This browser isn't letting the page save results."));
@@ -553,7 +559,7 @@
         if (session.awaitingStart) { startTask(); return; }
         if (!session.current) session.current = { start: Date.now(), events: [], selected: null, selectedPage: "" };
         // A selection only counts on the page it was made on.
-        if (session.current.selected && session.current.selectedPage !== pageName()) session.current.selected = null;
+        if (session.current.selected && session.current.selectedPage !== viewName()) session.current.selected = null;
         renderBar();
         refreshSelection();
       } else if (params.has("test")) {
@@ -561,6 +567,18 @@
       } else {
         showRunButton();
       }
+    },
+    isResultsPage: function () {
+      return mode === "results";
+    },
+    // app.js calls this after drawing a view.
+    routeChanged: function () {
+      if (!session || !session.current) return;
+      if (session.current.selected && session.current.selectedPage !== viewName()) {
+        session.current.selected = null;
+        saveSession();
+      }
+      refreshSelection();
     },
     cardsClickable: function () {
       return mode !== "results" && (!!session || !!findActiveSession()) && !(session && session.awaitingStart);
