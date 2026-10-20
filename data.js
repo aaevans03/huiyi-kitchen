@@ -15,7 +15,7 @@
 // and a list of values for every attribute id. An empty list ([]) means the recipe
 // is not reachable through that attribute.
 //
-// TASKS are the tree-test scenarios (used by index.html?test). Order is shuffled for
+// TASKS are the tree-test scenarios (used by index.html?test, then "Tree test"). Order is shuffled for
 // each participant, so the order here doesn't matter. Each task:
 //   id                   unique, e.g. "1" (appears in the results)
 //   text                 what the participant reads (the task description)
@@ -184,6 +184,50 @@ window.SITE_DATA = {
       targets: ["Baked BBQ Pork (Char Siu)"],
       predictedFirstClick: "Hong Kong",
       rationale: "Still tests whether people use the “countries” organization, but has one answer you can score.",
+    },
+  ],
+
+  // TALK-ALOUD TASKS (used by index.html?test, then "Talk-aloud test"). Order is shuffled for
+  // each participant. The participant clicks "I'm done" when they think they've finished,
+  // and the harness scores where they ended up. Each task:
+  //   id         unique, e.g. "1" (appears in the results)
+  //   text       what the participant reads
+  //   score      how "I'm done" is scored automatically; leave it out to not score the task:
+  //                recipe   recipe names; success = ended on one of these recipe pages
+  //                lang     also needs this recipe language ("en", "both" or "zh")
+  //                showing  [attribute id, value id]; success = the page shows exactly the
+  //                         recipes with that value, e.g. ["ingredient", "chicken"]
+  //   rationale  why we wrote it (for the team only; never shown or exported)
+  // The moderator can mark any task Success / Partial / Fail on the results page.
+  talkAloudTasks: [
+    {
+      id: 1,
+      text: "You want to make beef noodle soup and want to look at both the English and Chinese text while cooking.",
+      score: { recipe: ["Beef Noodle Soup"], lang: "both" },
+      rationale: "Tests whether people find and use the language toggle. Each task starts with the language set to English.",
+    },
+    {
+      id: 2,
+      text: "You want to cook dinner for a vegetarian friend. You have some sides, now you need to find one main dish recipe that can feed both of you.",
+      rationale: "The site has no vegetarian tag, so this is judged by the moderator from the recipe they ended on.",
+    },
+    {
+      id: 3,
+      text: "You just bought some chicken from the store, and want to see all the recipes that have it as a main ingredient.",
+      score: { showing: ["ingredient", "chicken"] },
+      rationale: "Tests the Main ingredient filter (or search). Success = a page listing every chicken recipe and nothing else.",
+    },
+    {
+      id: 4,
+      text: "You want to cook a breakfast with eggs. Find a recipe for that.",
+      score: { recipe: ["Cheese Egg Crepe", "Nasi Lemak", "Kaya Toast"] },
+      rationale: "Every recipe tagged both Breakfast and Egg. Tests combining a kind of dish with an ingredient filter.",
+    },
+    {
+      id: 5,
+      text: "There is a night market snack from Taiwan that you miss. It was some sort of… chicken? Find that recipe!",
+      score: { recipe: ["Taiwanese Popcorn Chicken"] },
+      rationale: "Tests Region (Taiwan), Snack, and search with a vague memory.",
     },
   ],
 };

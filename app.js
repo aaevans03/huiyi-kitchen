@@ -7,7 +7,7 @@
 //   #/recipes                 every recipe, with filters
 //   #/kind/noodles            one category (any attribute shown on the home page)
 //   #/recipe/beef-noodle-soup recipe page (?from=kind:noodles sets the breadcrumb)
-//   #/about, #/contact
+//   #/about, #/contact     (no longer linked from the nav)
 
 (function () {
   "use strict";

@@ -407,6 +407,31 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
 .tt-table th, .tt-table td { border: 1px solid var(--line); padding: 6px 12px; text-align: left; vertical-align: top; }
 .tt-table th { background: var(--sand); font-weight: 600; }
 .tt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; align-items: center; }
+.tt-choices { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.tt-modal .tt-choices button.tt-choice {
+  flex: 1 1 180px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 14px 18px; border-radius: 12px; background: var(--surface); border-color: var(--line-strong); color: var(--charcoal); font-weight: 600;
+}
+.tt-modal .tt-choices button.tt-choice:hover { border-color: var(--orange); color: var(--orange); background: var(--surface); }
+.tt-choice span { font-weight: 400; font-size: 14px; color: var(--muted); }
+.tt-switch { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px; margin: 0 0 20px; background: var(--surface); }
+.tt-switch button { border: 0; background: none; border-radius: 999px; padding: 8px 18px; font: inherit; font-weight: 500; color: inherit; cursor: pointer; }
+.tt-switch button[aria-pressed="true"] { background: var(--orange); color: #fff; }
+.tt-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 20px; }
+.tt-filter label { font-weight: 600; }
+/* Dropdowns on the results page: rounded, with a drawn chevron instead of the browser's arrow. */
+.tt-results select {
+  appearance: none; -webkit-appearance: none; font: inherit; color: var(--charcoal); cursor: pointer;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%236f655d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+  border: 1px solid var(--line-strong); border-radius: 999px; box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tt-results select:hover { border-color: var(--orange-light); }
+.tt-results select:focus-visible { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+#tt-task-filter { flex: 1 1 280px; max-width: 640px; min-width: 0; padding: 10px 40px 10px 18px; font-weight: 500; text-overflow: ellipsis; }
+.tt-table select { font-size: 14px; padding: 5px 32px 5px 12px; background-position: right 11px center; box-shadow: none; }
+.tt-notes { font: inherit; font-size: 14px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 6px; background: var(--cream); }
+.tt-notes { min-width: 160px; }
 
 /* ---------- responsive ---------- */
 
