@@ -64,15 +64,23 @@
     return null;
   }
 
-  function photo(id, width) {
-    return "https://images.unsplash.com/photo-" + id + "?auto=format&fit=crop&w=" + width + "&q=70";
+  // An image in content.js is one of: an Unsplash photo id ("1512058564366-18510be2db19"),
+  // a file in this project ("assets/images/lu-rou-fan.jpg") or a full URL, or an object
+  // { src, credit, link } for a photo that must be credited.
+  function imageSrc(entry) { return entry && typeof entry === "object" ? entry.src : entry; }
+  function imageCredit(entry) { return entry && typeof entry === "object" && entry.credit ? entry : null; }
+
+  function photo(src, width) {
+    if (/[\/.]/.test(src)) return src; // a project file or a URL: used as written
+    return "https://images.unsplash.com/photo-" + src + "?auto=format&fit=crop&w=" + width + "&q=70";
   }
 
   // A photo with a soft placeholder behind it, which also shows if the photo can't load.
-  function thumb(id, width, alt, className) {
+  function thumb(entry, width, alt, className) {
     var box = el("span", { class: "thumb " + (className || "") });
-    if (id) {
-      var img = el("img", { src: photo(id, width), alt: alt || "", loading: "lazy", decoding: "async" });
+    var src = imageSrc(entry);
+    if (src) {
+      var img = el("img", { src: photo(src, width), alt: alt || "", loading: "lazy", decoding: "async" });
       img.addEventListener("error", function () { img.remove(); });
       box.appendChild(img);
     }
@@ -626,6 +634,8 @@
 
     var hero = el("figure", { class: "recipe-hero" });
     hero.appendChild(thumb(content.images.recipe[recipe.name], 1600, recipe.name + " " + recipe.zh, "hero-img"));
+    var credit = imageCredit(content.images.recipe[recipe.name]);
+    if (credit) hero.appendChild(creditLine("figcaption", credit));
     article.appendChild(hero);
 
     // Quick facts
@@ -734,11 +744,42 @@
     return section;
   }
 
+  // "Photo: <credit>", linked to its source when there is one.
+  function creditLine(tag, credit) {
+    var node = el(tag, { class: "photo-credit" });
+    if (credit.link) node.appendChild(el("a", { href: credit.link, target: "_blank", rel: "noopener" }, credit.credit));
+    else node.appendChild(document.createTextNode(credit.credit));
+    return node;
+  }
+
   function buildAbout() {
-    prose("about", "About", "關於我們", [
+    var section = prose("about", "About", "關於我們", [
       "回憶 (huí yì) means “memories.” Huiyi Kitchen collects the home-style dishes people remember from China, Taiwan, Hong Kong, Singapore and Malaysia: the breakfast from a corner stall, the soup a grandparent made, the dish you ordered every week abroad.",
       "Every recipe is written in both English and Traditional Chinese, so you can cook it yourself or share it with family in the language they read best.",
     ]);
+
+    // Every photo that needs a credit, by what it shows.
+    var credits = [];
+    var kindAttr = attrById("kind");
+    Object.keys(content.images.category || {}).forEach(function (id) {
+      var c = imageCredit(content.images.category[id]);
+      var v = kindAttr && findValue(kindAttr, id);
+      if (c) credits.push({ name: (v ? v[1] : id) + " (recipe type)", credit: c });
+    });
+    Object.keys(content.images.recipe || {}).forEach(function (name) {
+      var c = imageCredit(content.images.recipe[name]);
+      if (c) credits.push({ name: name, credit: c });
+    });
+    if (!credits.length) return;
+    section.appendChild(el("h2", { class: "credits-title" }, "Photo credits"));
+    var ul = el("ul", { class: "credits" });
+    credits.forEach(function (item) {
+      var li = el("li");
+      li.appendChild(el("span", null, item.name + ": "));
+      li.appendChild(creditLine("span", item.credit));
+      ul.appendChild(li);
+    });
+    section.appendChild(ul);
   }
 
   function buildContact() {
@@ -781,6 +822,15 @@
         if (key === "name" || key === "zh") return;
         if (!data.attributes.some(function (a) { return a.id === key; })) {
           problems.push(name + ": unknown attribute \"" + key + "\"");
+        }
+      });
+    });
+    ["category", "recipe"].forEach(function (group) {
+      var map = content.images[group] || {};
+      Object.keys(map).forEach(function (key) {
+        var entry = map[key];
+        if (entry && typeof entry === "object" && (!entry.src || !entry.credit)) {
+          problems.push("content.js images." + group + ": \"" + key + "\" needs both src and credit");
         }
       });
     });
