@@ -3,7 +3,12 @@
 // filters, which recipe is where). Everything here is keyed by data.js ids or by a
 // recipe's English name exactly as written in data.js.
 //
-// IMAGES     Unsplash photo ids (the part after "photo-"), used as placeholders.
+// IMAGES     One per recipe type and per recipe. Each is one of:
+//              "1512058564366-18510be2db19"            an Unsplash photo id (the part after "photo-")
+//              "assets/images/lu-rou-fan.jpg"          a photo saved in this project, or a full URL
+//              { src: "assets/images/kaya-toast.jpg",  a photo that must be credited (CC BY, CC BY-SA,
+//                credit: "Photo: Jane Doe, CC BY-SA 4.0", a friend's photo). The credit shows under the
+//                link: "https://commons.wikimedia.org/..." } photo on its recipe page and on the About page.
 // LABELS_ZH  Chinese label and pinyin for each attribute value (by value id).
 //            Region values also list their flags: files in assets/flags/ (Twemoji, CC-BY 4.0).
 // SEARCH     per recipe: pinyin of the Chinese name, plus extra words people might type
