@@ -316,7 +316,9 @@
     var card = el("div", { class: "search-card" });
     card.appendChild(el("h1", null, "Find Recipes"));
     card.appendChild(el("p", { class: "search-hint" }, "Search in English, 中文, or pinyin"));
-    card.appendChild(searchForm("", "home"));
+    var form = searchForm("", "home");
+    filterSuggestions(form.querySelector("input"));
+    card.appendChild(form);
     hero.appendChild(card);
 
     if (regionAttr) {
@@ -422,6 +424,154 @@
       });
     }
     return form;
+  }
+
+  // ---------- filter suggestions ----------
+
+  // Filters whose name matches what's typed. Each: { attr, value, rest }, where rest is
+  // the query without the words the filter covers ("beef noodles" → Noodles, rest "beef").
+  var STOP_WORDS = ["and", "or"];
+
+  function filterMatches(query) {
+    var words = String(query || "").split(/\s+/).filter(Boolean);
+    var norm = words.map(function (w) { return normalize(w).replace(/\s+/g, ""); });
+    if (!norm.join("")) return [];
+    var out = [];
+
+    data.attributes.forEach(function (attr) {
+      attr.values.forEach(function (value) {
+        var zh = zhOf(attr.id, value[0]);
+        var enWords = normalize(value[1]).split(/\s+/).filter(function (w) { return w && STOP_WORDS.indexOf(w) === -1; });
+        var zhLabel = normalize(zh[0]).replace(/\s+/g, "");
+        var pinyin = normalize(zh[1]).replace(/\s+/g, "");
+        var rest = words.slice();
+        var hit = false;
+
+        norm.forEach(function (w, i) {
+          if (!w) return;
+          if (CJK.test(w)) {
+            // 牛肉麵 holds 牛肉 (Beef); 早 starts 早餐 (Breakfast).
+            var at = zhLabel ? w.indexOf(zhLabel) : -1;
+            if (at !== -1) {
+              rest[i] = words[i].slice(0, at) + words[i].slice(at + zhLabel.length);
+              hit = true;
+            } else if (zhLabel && (zhLabel.indexOf(w) === 0 || (w.length > 1 && zhLabel.indexOf(w) !== -1))) {
+              rest[i] = "";
+              hit = true;
+            }
+            return;
+          }
+          if (w.length < 2 || STOP_WORDS.indexOf(w) !== -1) return;
+          var stem = w.length > 3 ? w.replace(/s$/, "") : w; // "eggs" → "egg"
+          if (enWords.some(function (e) { return e.indexOf(stem) === 0; })) {
+            rest[i] = "";
+            hit = true;
+          }
+        });
+
+        // Pinyin, spaced or not: "niu rou mian" and "niuroumian" both hold niurou (Beef).
+        if (!hit && pinyin.length >= 4) {
+          for (var i = 0; i < norm.length && !hit; i++) {
+            var run = "";
+            for (var j = i; j < norm.length && run.length < pinyin.length; j++) {
+              run += norm[j];
+              if (run === pinyin) {
+                for (var k = i; k <= j; k++) rest[k] = "";
+                hit = true;
+              }
+            }
+          }
+        }
+
+        if (hit) out.push({ attr: attr, value: value, rest: rest.join(" ").replace(/\s+/g, " ").trim() });
+      });
+    });
+    return out;
+  }
+
+  // On the home page: as people type, a dropdown under the search box lists filters that
+  // match their words. Picking one opens the recipes page with that filter on (and any
+  // other words still searched). Enter without a highlighted filter searches as usual.
+  function filterSuggestions(input) {
+    var field = el("div", { class: "search-field" });
+    input.parentNode.insertBefore(field, input);
+    field.appendChild(input);
+    var list = el("ul", { id: "filter-suggest", class: "filter-suggest", role: "listbox", "aria-label": "Suggested filters" });
+    list.hidden = true;
+    field.appendChild(list);
+    var status = el("p", { class: "visually-hidden", "aria-live": "polite" });
+    field.appendChild(status);
+
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-controls", list.id);
+    input.setAttribute("aria-expanded", "false");
+
+    var options = [];
+    var active = -1;
+
+    function setActive(i) {
+      active = i;
+      options.forEach(function (o, j) { o.setAttribute("aria-selected", j === i ? "true" : "false"); });
+      if (i === -1) input.removeAttribute("aria-activedescendant");
+      else input.setAttribute("aria-activedescendant", options[i].id);
+    }
+
+    function close() {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      setActive(-1);
+    }
+
+    function update() {
+      list.innerHTML = "";
+      var found = filterMatches(input.value).map(function (m) {
+        var base = m.rest ? search(m.rest) : data.recipes;
+        m.count = base.filter(function (r) { return hasValue(r, m.attr, m.value[0]); }).length;
+        return m;
+      }).filter(function (m) { return m.count > 0; }).slice(0, 6);
+
+      options = found.map(function (m, i) {
+        var p = new URLSearchParams();
+        p.set(m.attr.id, m.value[0]);
+        if (m.rest) p.set("q", m.rest);
+        var li = el("li", { role: "presentation" });
+        // A link, so the tree test logs it like any other click.
+        var a = el("a", {
+          id: "filter-suggest-" + i, role: "option", tabindex: "-1", href: hashFor(["recipes"], p),
+          "data-log": "suggested filter", "data-label": m.attr.label + ": " + m.value[1],
+        });
+        var name = el("span", { class: "suggest-name" });
+        name.appendChild(el("span", null, m.value[1]));
+        var zh = zhOf(m.attr.id, m.value[0])[0];
+        if (zh) name.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
+        a.appendChild(name);
+        a.appendChild(el("span", { class: "suggest-group" }, "Filter: " + m.attr.label + (m.rest ? " · “" + m.rest + "”" : "")));
+        a.appendChild(el("span", { class: "suggest-count" }, plural(m.count, "recipe")));
+        // Keep focus in the box while the click lands.
+        a.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        a.addEventListener("mousemove", function () { if (active !== i) setActive(i); });
+        li.appendChild(a);
+        list.appendChild(li);
+        return a;
+      });
+
+      setActive(-1);
+      list.hidden = options.length === 0;
+      input.setAttribute("aria-expanded", options.length ? "true" : "false");
+      status.textContent = options.length ? plural(options.length, "filter") + " suggested" : "";
+    }
+
+    input.addEventListener("input", update);
+    input.addEventListener("focus", function () { if (input.value.trim()) update(); });
+    input.addEventListener("blur", close);
+    input.addEventListener("keydown", function (e) {
+      if (list.hidden) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1 < options.length ? active + 1 : -1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active === -1 ? options.length - 1 : active - 1); }
+      else if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "Enter" && active !== -1) { e.preventDefault(); options[active].click(); }
+    });
   }
 
   // ---------- recipes listing ----------
