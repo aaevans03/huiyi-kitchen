@@ -2,11 +2,11 @@
 // To change categories, filters, or recipes, edit only this file.
 //
 // ATTRIBUTES are the ways recipes are organized or filtered. Each one:
-//   id        short key used on every recipe and in page URLs (category.html?kind=rice)
+//   id        short key used on every recipe and in page URLs (#/recipes?kind=rice)
 //   label     text people see
 //   onHome    true = shown as a group of buttons on the home page (a top-level organization)
-//   asFilter  true = shown as toggle-button filters above the recipes on category pages
-//             (hidden on pages of that same attribute, and when it can't narrow the list)
+//   asFilter  (unused now: the recipes page offers every attribute as a filter,
+//             hiding only those that can't narrow the list)
 //   required  true = every recipe must have at least one value
 //   values    [id, label] pairs, in display order
 // Every attribute holds a list on each recipe, so a recipe can live in several places.

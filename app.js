@@ -5,8 +5,9 @@
 //   #/                        home (search, region filters, recipe types)
 //   #/?q=beef&region=taiwan   home with search results showing
 //   #/recipes                 every recipe, with filters
-//   #/kind/noodles            one category (any attribute shown on the home page)
-//   #/recipe/beef-noodle-soup recipe page (?from=kind:noodles sets the breadcrumb)
+//   #/recipes?kind=noodles    recipes with a filter already on (what the home page links to)
+//   #/kind/noodles            old category link; redirects to #/recipes?kind=noodles
+//   #/recipe/beef-noodle-soup recipe page (?from=recipes?kind=noodles sets the breadcrumb)
 //   #/about, #/contact     (no longer linked from the nav)
 
 (function () {
@@ -109,6 +110,13 @@
     return path + (s ? "?" + s : "");
   }
 
+  // The recipes page with one filter already on, e.g. #/recipes?kind=noodles.
+  function filteredHash(attrId, valueId) {
+    var p = new URLSearchParams();
+    p.set(attrId, valueId);
+    return hashFor(["recipes"], p);
+  }
+
   // Updates the address bar for in-view changes (search, filters) without a new history entry.
   function replaceParams(params) {
     var route = parseHash();
@@ -140,12 +148,17 @@
       return;
     }
 
+    // Old category links (#/kind/noodles) open the recipes page with that filter on.
+    if (parts.length === 2 && attrById(parts[0]) && findValue(attrById(parts[0]), parts[1])) {
+      window.location.replace(filteredHash(parts[0], parts[1]));
+      return;
+    }
+
     if (parts.length === 0) buildHome();
-    else if (path === "recipes") buildListing(null, route.params);
+    else if (path === "recipes") buildListing(route.params);
     else if (path === "about") buildAbout();
     else if (path === "contact") buildContact();
     else if (parts[0] === "recipe" && parts.length === 2) buildRecipe(parts[1], route.params);
-    else if (parts.length === 2 && attrById(parts[0]) && attrById(parts[0]).onHome) buildListing({ attr: attrById(parts[0]), valueId: parts[1] }, route.params);
     else buildNotFound();
 
     // A new view starts at the top; staying on the same view (e.g. back from a filter) doesn't jump.
@@ -292,8 +305,8 @@
 
   // ---------- home ----------
 
-  // The home page only leads somewhere: search goes to the recipes page, a country
-  // goes to that region's page, a recipe type goes to its category page.
+  // The home page only leads somewhere: search, a country, or a recipe type all open
+  // the recipes page (with that search or filter already applied).
   function buildHome() {
     setPage("home");
     var regionAttr = attrById("region");
@@ -311,7 +324,7 @@
       regionAttr.values.forEach(function (value) {
         var zh = zhOf("region", value[0]);
         var a = el("a", {
-          class: "region-link", href: hashFor([regionAttr.id, value[0]]),
+          class: "region-link", href: filteredHash(regionAttr.id, value[0]),
           "data-log": "link", "data-label": value[1],
         });
         if (zh[2] && zh[2].length) {
@@ -352,7 +365,7 @@
         var zh = zhOf(kindAttr.id, value[0]);
         var li = el("li");
         var a = el("a", {
-          class: "category-card", href: hashFor([kindAttr.id, value[0]]),
+          class: "category-card", href: filteredHash(kindAttr.id, value[0]),
           "data-log": "link", "data-label": value[1],
         });
         a.appendChild(thumb(content.images.category[value[0]], 700, ""));
@@ -411,30 +424,15 @@
     return form;
   }
 
-  // ---------- listing (one category, or every recipe) ----------
+  // ---------- recipes listing ----------
 
-  // category: { attr, valueId } or null for every recipe.
-  function buildListing(category, params) {
-    var recipes, title, zhTitle = "", from = null, filterAttrs;
-
-    if (category) {
-      var value = findValue(category.attr, category.valueId);
-      if (!value) { buildNotFound(); return; }
-      title = value[1];
-      zhTitle = zhOf(category.attr.id, value[0])[0];
-      from = category.attr.id + ":" + value[0];
-      recipes = data.recipes.filter(function (r) { return hasValue(r, category.attr, value[0]); });
-      filterAttrs = data.attributes.filter(function (a) { return a.asFilter && a.id !== category.attr.id; });
-      setPage("category", title);
-    } else {
-      title = "Recipes";
-      zhTitle = "全部食譜";
-      from = "recipes";
-      recipes = data.recipes.slice();
-      filterAttrs = data.attributes.slice();
-      setPage("recipes", title);
-    }
-    recipes.sort(byName);
+  // Every recipe, with search and filters. Filters can start on from the URL (?kind=noodles).
+  function buildListing(params) {
+    var title = "Recipes";
+    var zhTitle = "全部食譜";
+    var recipes = data.recipes.slice().sort(byName);
+    var filterAttrs = data.attributes.slice();
+    setPage("recipes", title);
 
     // Only show filters that can narrow this list.
     filterAttrs = filterAttrs.filter(function (a) {
@@ -451,13 +449,10 @@
     head.appendChild(h1);
     main.appendChild(head);
 
-    // Only the recipes page has a search box; it narrows the list as you type.
-    var query = category ? "" : (params.get("q") || "").trim();
-    var form = null;
-    if (!category) {
-      form = searchForm(query, "recipes");
-      head.appendChild(form);
-    }
+    // The search box narrows the list as you type.
+    var query = (params.get("q") || "").trim();
+    var form = searchForm(query, "recipes");
+    head.appendChild(form);
 
     var layout = el("div", { class: "listing" + (filterAttrs.length ? "" : " no-filters") });
     var aside = el("aside", { class: "filters", "aria-labelledby": "filters-title" });
@@ -526,12 +521,12 @@
       });
       clear.hidden = sel.length === 0;
 
-      if (pushUrl) {
-        var p = new URLSearchParams();
-        if (query) p.set("q", query);
-        sel.forEach(function (s) { p.set(s.attr.id, s.ids.join(",")); });
-        replaceParams(p);
-      }
+      var p = new URLSearchParams();
+      if (query) p.set("q", query);
+      sel.forEach(function (s) { p.set(s.attr.id, s.ids.join(",")); });
+      if (pushUrl) replaceParams(p);
+      // Recipe pages link back to this list as it is now (search and filters included).
+      var from = hashFor(["recipes"], p).slice(2);
 
       if (query) countEl.textContent = plural(shown.length, "recipe") + " matching “" + query + "”";
       else if (sel.length) countEl.textContent = "Showing " + shown.length + " of " + plural(recipes.length, "recipe");
@@ -543,15 +538,13 @@
         : "No recipes match these filters."));
     }
 
-    if (form) {
-      var input = form.querySelector("input");
-      var setQuery = function () {
-        query = input.value.trim();
-        update(true);
-      };
-      input.addEventListener("input", setQuery);
-      form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
-    }
+    var input = form.querySelector("input");
+    var setQuery = function () {
+      query = input.value.trim();
+      update(true);
+    };
+    input.addEventListener("input", setQuery);
+    form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
 
     aside.addEventListener("click", function (e) {
       var btn = e.target.closest("button.toggle");
@@ -593,18 +586,13 @@
     var kindAttr = attrById("kind");
     var regionAttr = attrById("region");
 
-    // Breadcrumb: the category the reader came from, or the recipe's first kind of dish.
-    var crumbs = [{ text: "Home", href: "#/" }];
-    if (params.get("from") === "recipes") crumbs.push({ text: "Recipes", href: "#/recipes" });
-    var from = (params.get("from") || "").split(":");
-    var fromAttr = attrById(from[0]);
-    var fromValue = fromAttr && hasValue(recipe, fromAttr, from[1]) ? findValue(fromAttr, from[1]) : null;
-    if (!fromValue && crumbs.length === 1 && kindAttr && valuesOf(recipe, kindAttr).length) {
-      fromAttr = kindAttr;
-      fromValue = findValue(kindAttr, valuesOf(recipe, kindAttr)[0]);
-    }
-    if (fromValue) crumbs.push({ text: fromValue[1], href: hashFor([fromAttr.id, fromValue[0]]) });
-    crumbs.push({ text: recipe.name });
+    // Breadcrumb: back to the recipes list the reader came from (with its filters),
+    // or, opened directly, the recipes list filtered to this recipe's first kind of dish.
+    var from = params.get("from") || "";
+    var recipesHref = "#/recipes";
+    if (/^recipes(\?|$)/.test(from)) recipesHref = "#/" + from;
+    else if (kindAttr && valuesOf(recipe, kindAttr).length) recipesHref = filteredHash(kindAttr.id, valuesOf(recipe, kindAttr)[0]);
+    var crumbs = [{ text: "Home", href: "#/" }, { text: "Recipes", href: recipesHref }, { text: recipe.name }];
 
     var article = el("article", { class: "recipe lang-" + currentLang() });
 
@@ -702,7 +690,7 @@
     data.attributes.filter(function (a) { return a.onHome; }).forEach(function (attr) {
       valuesOf(recipe, attr).forEach(function (id) {
         var v = findValue(attr, id);
-        var a = el("a", { class: "pill", href: hashFor([attr.id, id]), "data-log": "link", "data-label": v[1] });
+        var a = el("a", { class: "pill", href: filteredHash(attr.id, id), "data-log": "link", "data-label": v[1] });
         a.appendChild(el("span", null, v[1]));
         var zh = zhOf(attr.id, id)[0];
         if (zh) a.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
