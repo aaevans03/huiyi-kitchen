@@ -384,12 +384,17 @@
   }
 
   function shuffleIcon() {
+    return lineIcon("shuffle-icon", ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]);
+  }
+
+  // A 24×24 stroked icon from SVG path data.
+  function lineIcon(className, paths) {
     var ns = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("class", "shuffle-icon");
+    svg.setAttribute("class", className);
     svg.setAttribute("aria-hidden", "true");
-    ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"].forEach(function (d) {
+    paths.forEach(function (d) {
       var path = document.createElementNS(ns, "path");
       path.setAttribute("d", d);
       svg.appendChild(path);
@@ -491,12 +496,16 @@
 
   // On the home page: as people type, a dropdown under the search box lists filters that
   // match their words. Picking one opens the recipes page with that filter on (and any
-  // other words still searched). Enter without a highlighted filter searches as usual.
+  // other words still searched). The first row searches the typed words as they are, so
+  // filters read as a shortcut, not the only way. Enter without a highlighted row searches too.
+  var SEARCH_ICON = ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14", "M20 20l-4-4"];
+  var FILTER_ICON = ["M4 5h16l-6 8v5l-4 2v-7z"];
+
   function filterSuggestions(input) {
     var field = el("div", { class: "search-field" });
     input.parentNode.insertBefore(field, input);
     field.appendChild(input);
-    var list = el("ul", { id: "filter-suggest", class: "filter-suggest", role: "listbox", "aria-label": "Suggested filters" });
+    var list = el("ul", { id: "filter-suggest", class: "filter-suggest", role: "listbox", "aria-label": "Search suggestions" });
     list.hidden = true;
     field.appendChild(list);
     var status = el("p", { class: "visually-hidden", "aria-live": "polite" });
@@ -531,35 +540,52 @@
         return m;
       }).filter(function (m) { return m.count > 0; }).slice(0, 6);
 
-      options = found.map(function (m, i) {
+      options = [];
+      if (found.length) {
+        var query = input.value.trim();
+        var qp = new URLSearchParams();
+        qp.set("q", query);
+        var text = el("span", { class: "suggest-name" });
+        text.appendChild(el("span", null, query));
+        addOption(hashFor(["recipes"], qp), "search", "Search: " + query, SEARCH_ICON, text,
+          "Search all recipes", plural(search(query).length, "recipe"));
+      }
+      found.forEach(function (m) {
         var p = new URLSearchParams();
         p.set(m.attr.id, m.value[0]);
         if (m.rest) p.set("q", m.rest);
-        var li = el("li", { role: "presentation" });
-        // A link, so the tree test logs it like any other click.
-        var a = el("a", {
-          id: "filter-suggest-" + i, role: "option", tabindex: "-1", href: hashFor(["recipes"], p),
-          "data-log": "suggested filter", "data-label": m.attr.label + ": " + m.value[1],
-        });
         var name = el("span", { class: "suggest-name" });
         name.appendChild(el("span", null, m.value[1]));
         var zh = zhOf(m.attr.id, m.value[0])[0];
         if (zh) name.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
-        a.appendChild(name);
-        a.appendChild(el("span", { class: "suggest-group" }, "Filter: " + m.attr.label + (m.rest ? " · “" + m.rest + "”" : "")));
-        a.appendChild(el("span", { class: "suggest-count" }, plural(m.count, "recipe")));
-        // Keep focus in the box while the click lands.
-        a.addEventListener("mousedown", function (e) { e.preventDefault(); });
-        a.addEventListener("mousemove", function () { if (active !== i) setActive(i); });
-        li.appendChild(a);
-        list.appendChild(li);
-        return a;
+        addOption(hashFor(["recipes"], p), "suggested filter", m.attr.label + ": " + m.value[1], FILTER_ICON, name,
+          "Filter: " + m.attr.label + (m.rest ? " · “" + m.rest + "”" : ""), plural(m.count, "recipe"));
       });
 
       setActive(-1);
       list.hidden = options.length === 0;
       input.setAttribute("aria-expanded", options.length ? "true" : "false");
-      status.textContent = options.length ? plural(options.length, "filter") + " suggested" : "";
+      status.textContent = found.length ? plural(found.length, "filter") + " suggested" : "";
+    }
+
+    function addOption(href, logAction, logLabel, iconPaths, name, detail, count) {
+      var i = options.length;
+      var li = el("li", { role: "presentation" });
+      // A link, so the tree test logs it like any other click.
+      var a = el("a", {
+        id: "filter-suggest-" + i, role: "option", tabindex: "-1", href: href,
+        "data-log": logAction, "data-label": logLabel,
+      });
+      a.appendChild(lineIcon("suggest-icon", iconPaths));
+      a.appendChild(name);
+      a.appendChild(el("span", { class: "suggest-group" }, detail));
+      a.appendChild(el("span", { class: "suggest-count" }, count));
+      // Keep focus in the box while the click lands.
+      a.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      a.addEventListener("mousemove", function () { if (active !== i) setActive(i); });
+      li.appendChild(a);
+      list.appendChild(li);
+      options.push(a);
     }
 
     input.addEventListener("input", update);
