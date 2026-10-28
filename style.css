@@ -272,7 +272,7 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 /* ---------- listing (category / all recipes) ---------- */
 
 .page-head { margin: 20px 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; }
-.search-form-compact { flex: 0 1 460px; gap: 8px; }
+.search-form-compact { flex: 0 1 460px; gap: 8px; min-width: 0; } /* lets it shrink on phones instead of overflowing */
 .search-form-compact input { min-height: 44px; font-size: 15px; padding: 0 18px; background: var(--surface); }
 .search-form-compact .btn-primary { min-height: 44px; padding: 0 20px; font-size: 15px; box-shadow: none; }
 .listing { display: grid; grid-template-columns: 260px 1fr; gap: 40px; align-items: start; }
@@ -298,6 +298,8 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .filters .pill { font-size: 14px; padding: 6px 12px; min-height: 36px; }
 
+.results-subhead { font-size: 20px; margin: 40px 0 16px; padding-top: 24px; border-top: 1px solid var(--line); }
+.results-subhead-zh { font-family: var(--font-sans); font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 8px; }
 .result-count { color: var(--muted); font-size: 15px; margin-bottom: 16px; }
 .recipe-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 24px; }
 .recipe-card .thumb { aspect-ratio: 4 / 3; }
