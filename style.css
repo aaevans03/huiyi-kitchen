@@ -12,7 +12,7 @@
   --orange-soft: #fbe3d3;   /* tinted fills */
   --shade: #6f321b;         /* base + 40% black: text on tinted fills (7.5:1) */
   --accent: #a3bfa0;        /* sage: a second hue, used sparingly; dark text on it */
-  --accent-deep: #5c8a57;   /* icon strokes, checkbox borders: 3:1+ on cream */
+  --accent-deep: #5c8a57;   /* icon strokes, ingredient dots: 3:1+ on cream */
   --accent-light: #bcd2b9;
   --accent-soft: #edf3ea;
   --charcoal: #2e2a27;
@@ -393,21 +393,9 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 }
 .ing-group.zh { letter-spacing: 0.12em; }
 
-.ingredient {
-  display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line);
-  cursor: pointer; transition: color 0.2s;
-}
-.ingredient input {
-  appearance: none; flex: none; width: 20px; height: 20px; margin: 2px 0 0; border: 2px solid var(--line-strong);
-  border-radius: 6px; background: var(--surface); cursor: pointer; display: grid; place-content: center;
-  transition: background-color 0.15s, border-color 0.15s;
-}
-.ingredient input::after { content: ""; width: 10px; height: 6px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); opacity: 0; }
-.ingredient input:checked { background: var(--accent); border-color: var(--accent-deep); }
-.ingredient input:checked::after { border-color: var(--charcoal); }
-.ingredient input:checked::after { opacity: 1; }
-.ingredient:hover input { border-color: var(--accent-light); }
-.ingredient:has(input:checked) span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--accent-deep); }
+/* Ingredient lines: a small sage dot marks each one (no check boxes). */
+.ingredient { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+.ingredient::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 0.6em; border-radius: 50%; background: var(--accent-deep); }
 
 .step { display: flex; gap: 16px; padding: 16px 0; }
 .step p { margin: 0; }
@@ -552,7 +540,7 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
   .recipe.lang-both .steps-title.zh { margin-top: 0; }
   .recipe.lang-both .ingredient.en { border-bottom: 0; padding-bottom: 0; }
   .recipe.lang-both .ingredient.zh { padding-top: 2px; }
-  .recipe.lang-both .ingredient.zh input { visibility: hidden; }
+  .recipe.lang-both .ingredient.zh::before { visibility: hidden; }
   .recipe.lang-both .step.en { padding-bottom: 4px; }
   .recipe.lang-both .step.zh { padding-top: 0; border-bottom: 1px dashed var(--line); }
   .recipe.lang-both .step.zh .step-num { visibility: hidden; }

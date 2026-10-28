@@ -1007,18 +1007,10 @@
     var body = el("div", { class: "bilingual" });
     if (details) {
       pair(body, "h2", { class: "section-title" }, "Ingredients", "材料");
-      var key = 0;
       details.ingredients.forEach(function (group) {
         pair(body, "h3", { class: "ing-group" }, group.group[0], group.group[1]);
         group.items.forEach(function (item) {
-          var k = "ing-" + (key++);
-          function fill(text) {
-            return function (label) {
-              label.appendChild(el("input", { type: "checkbox", "data-key": k }));
-              label.appendChild(el("span", null, text));
-            };
-          }
-          pair(body, "label", { class: "ingredient" }, fill(item[0]), fill(item[1]));
+          pair(body, "p", { class: "ingredient" }, item[0], item[1]);
         });
       });
       pair(body, "h2", { class: "section-title steps-title" }, "Steps", "步驟");
@@ -1067,12 +1059,6 @@
       toggle.querySelectorAll("button").forEach(function (x) {
         x.setAttribute("aria-pressed", x === b ? "true" : "false");
       });
-    });
-    // An ingredient checked in one language is checked in the other too.
-    body.addEventListener("change", function (e) {
-      var k = e.target.getAttribute("data-key");
-      if (!k) return;
-      body.querySelectorAll("input[data-key='" + k + "']").forEach(function (box) { box.checked = e.target.checked; });
     });
   }
 
