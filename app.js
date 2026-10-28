@@ -444,6 +444,7 @@
     var out = [];
 
     data.attributes.forEach(function (attr) {
+      if (attr.tagOnly) return; // labels like Vegetarian are found by search, not offered as filters
       attr.values.forEach(function (value) {
         var zh = zhOf(attr.id, value[0]);
         var enWords = normalize(value[1]).split(/\s+/).filter(function (w) { return w && STOP_WORDS.indexOf(w) === -1; });
@@ -607,7 +608,7 @@
     var title = "Recipes";
     var zhTitle = "全部食譜";
     var recipes = data.recipes.slice().sort(byName);
-    var filterAttrs = data.attributes.slice();
+    var filterAttrs = data.attributes.filter(function (a) { return !a.tagOnly; });
     setPage("recipes", title);
 
     // Only show filters that can narrow this list.
@@ -823,6 +824,13 @@
         "Origin: " + origins.map(function (id) { return findValue(regionAttr, id)[1]; }).join(", "),
         "產地：" + origins.map(function (id) { return zhOf("region", id)[0]; }).join("、"));
     }
+    // Diet: the most specific one (a vegan recipe is also tagged vegetarian).
+    var dietAttr = attrById("diet");
+    var diets = dietAttr ? valuesOf(recipe, dietAttr) : [];
+    if (diets.length) {
+      var diet = diets[diets.length - 1];
+      badge("🌱", findValue(dietAttr, diet)[1], zhOf("diet", diet)[0]);
+    }
     article.appendChild(badges);
 
     // Ingredients and steps, as English/Chinese pairs.
@@ -863,10 +871,12 @@
     // Where else this recipe lives.
     var tags = el("div", { class: "recipe-tags" });
     tags.appendChild(el("h2", { class: "visually-hidden" }, "Find similar recipes"));
-    data.attributes.filter(function (a) { return a.onHome; }).forEach(function (attr) {
+    // Labels that aren't filters (Vegetarian) link to a search for that word.
+    data.attributes.filter(function (a) { return a.onHome || a.tagOnly; }).forEach(function (attr) {
       valuesOf(recipe, attr).forEach(function (id) {
         var v = findValue(attr, id);
-        var a = el("a", { class: "pill", href: filteredHash(attr.id, id), "data-log": "link", "data-label": v[1] });
+        var href = attr.tagOnly ? hashFor(["recipes"], new URLSearchParams([["q", v[1]]])) : filteredHash(attr.id, id);
+        var a = el("a", { class: "pill", href: href, "data-log": "link", "data-label": v[1] });
         a.appendChild(el("span", null, v[1]));
         var zh = zhOf(attr.id, id)[0];
         if (zh) a.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
