@@ -443,8 +443,9 @@
     }
   }
 
+  // Twemoji 🔀, like the flags.
   function shuffleIcon() {
-    return lineIcon("shuffle-icon", ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]);
+    return el("img", { class: "shuffle-icon", src: "assets/shuffle.svg", alt: "", "aria-hidden": "true", width: "24", height: "24" });
   }
 
   // A 24×24 stroked icon from SVG path data.
