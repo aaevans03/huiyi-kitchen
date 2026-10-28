@@ -245,13 +245,18 @@
 
   // ---------- search ----------
 
-  // Traditional to simplified for the characters our names and labels use, so either
-  // script finds the same recipes.
+  // Traditional to Simplified for every character the site's names, labels and recipes
+  // use, so either script finds the same recipes. Generated with OpenCC (tw → cn) from the
+  // characters in data.js and content.js; regenerate it when recipes add new characters.
   var T2S = {};
-  ("麵面雞鸡豬猪魚鱼湯汤飯饭灣湾國国馬马亞亚鮮鲜類类與与燒烧絲丝鍋锅餃饺滷卤魯鲁黃黄麗丽餅饼腸肠蝦虾條条" +
-   "漿浆來来蘭兰蔥葱薑姜醬酱鹹咸鹽盐蕃番哩喱燉炖蘿萝蔔卜醃腌熱热涼凉餛馄飩饨鮑鲍雲云臺台鴨鸭鵝鹅籠笼" +
-   "魷鱿蠔蚝貝贝葉叶筍笋麥麦廚厨憶忆淨净煙烟糰团腳脚檸柠")
-    .match(/../g).forEach(function (pair) { T2S[pair[0]] = pair[1]; });
+  (
+   "絲丝紅红燒烧鍋锅雞鸡飯饭餃饺鹹咸滷卤麵面黃黄麗丽餅饼腸肠蘭兰條条蝦虾漿浆馬马來来類类與与湯汤國国灣湾亞亚豬猪鮮鲜純纯鹽盐魯鲁鐘钟許许學学會会醬酱適适顆颗塊块蔥葱綠绿開开讓让濃浓勻匀熱热輕轻還还" +
+   "點点濕湿潤润時时邊边壓压變变將将絞绞滿满盤盘約约頭头薑姜歡欢調调處处滾滚撈捞瀝沥乾干轉转鏟铲攪搅後后動动鈴铃這这卻却細细較较澱淀換换沖冲樣样徹彻著着燉炖幾几狀状剝剥殼壳燙烫淨净並并餘余裡里專专" +
+   "剛刚蓋盖過过軟软綿绵憊惫緊紧選选擇择間间電电鬆松話话靜静縫缝經经飽饱涼凉鋪铺緣缘捲卷醃腌蠔蚝凍冻撥拨顏颜帶带隻只質质燜焖溫温鎮镇實实備备煙烟響响兩两種种極极內内餡馅張张盡尽擠挤產产對对摺折複复" +
+   "個个貼贴裝装進进氣气層层羅罗脫脱續续廚厨紙纸噴喷濺溅遠远製制爾尔彈弹飾饰現现組组擺摆側侧漬渍滲渗當当無无攤摊圓圆翹翘廣广寬宽長长預预鋁铝沒没達达繼继簡简單单錢钱東东議议夾夹廳厅療疗癒愈綜综義义" +
+   "臘腊聽听聲声從从驟骤順顺準准屬属撐撑傾倾斬斩檸柠則则葉叶結结參参萊莱搗捣視视補补疊叠週周縱纵檳槟販贩彎弯勁劲訣诀丟丢買买發发濾滤別别藥药紗纱嚐尝應应該该顯显費费離离魚鱼圍围篩筛網网檔档憶忆蘿萝" +
+   "蔔卜餛馄飩饨鮑鲍雲云臺台鴨鸭鵝鹅籠笼魷鱿貝贝筍笋麥麦糰团腳脚隨随機机譜谱關关於于們们聯联絡络蕃番哩喱"
+  ).match(/../g).forEach(function (pair) { T2S[pair[0]] = pair[1]; });
 
   function normalize(text) {
     return String(text || "")
@@ -265,6 +270,7 @@
   var searchIndex = null;
 
   function buildSearchIndex() {
+    var aliases = content.searchAliases || {};
     searchIndex = data.recipes.map(function (recipe) {
       var extra = content.search[recipe.name] || {};
       var pinyin = extra.pinyin || "";
@@ -275,19 +281,54 @@
           var v = findValue(attr, id);
           var zh = zhOf(attr.id, id);
           if (v) labels.push(v[1], zh[0], zh[1], (zh[1] || "").replace(/\s+/g, ""));
+          if ((aliases[attr.id] || {})[id]) labels.push(aliases[attr.id][id]);
         });
       });
-      return { recipe: recipe, names: normalize(names), labels: normalize(labels.join(" ")) };
+      // Every line of the full recipe's ingredient list, English and Chinese.
+      var details = content.details[recipe.name];
+      var ingredients = [];
+      if (details) details.ingredients.forEach(function (group) {
+        group.items.forEach(function (item) { ingredients.push(item[0], item[1]); });
+      });
+      var entry = { recipe: recipe, names: normalize(names), labels: normalize(labels.join(" ")), ingredients: normalize(ingredients.join(" ")) };
+      // Whole Chinese words this recipe is known by (粥, 蛋, 素食): a single character
+      // only counts when it is a whole word like these.
+      entry.words = (entry.names + " " + entry.labels).split(/\s+/).filter(function (w) { return CJK.test(w); });
+      return entry;
     });
   }
 
-  // Each word must match somewhere. Name matches rank above category/ingredient matches.
-  function search(query) {
+  // Chinese is usually typed without spaces: 早餐鸡蛋 is 早餐 + 鸡蛋. Splits a run of
+  // Chinese into the longest pieces found in this recipe, left to right. Returns 0 if it
+  // can't be covered, 2 if every piece is in the name or a category, 1 if a piece is
+  // only in the ingredient list.
+  function coverChinese(entry, t) {
+    var main = entry.names + " " + entry.labels;
+    var level = 2;
+    for (var i = 0; i < t.length;) {
+      var found = 0;
+      for (var j = t.length; j > i; j--) {
+        var piece = t.slice(i, j);
+        var whole = piece.length > 1 || entry.words.indexOf(piece) !== -1;
+        if (!whole) continue;
+        if (main.indexOf(piece) !== -1) { found = j; break; }
+        if (entry.ingredients.indexOf(piece) !== -1) { found = j; level = 1; break; }
+      }
+      if (!found) return 0;
+      i = found;
+    }
+    return level;
+  }
+
+  // Each word must match somewhere: a name (best), a category, alias or filter label, or a
+  // line of the ingredient list (last). Returns [{ recipe, score, byIngredient }], best first;
+  // byIngredient is true when some word was only found in the ingredient list.
+  function searchScored(query) {
     if (!searchIndex) buildSearchIndex();
     var tokens = normalize(query).split(/\s+/).filter(Boolean).map(function (t) {
       return CJK.test(t) ? t : t.replace(/([a-z])[1-5]/g, "$1"); // "niu2 rou4" works too
     });
-    if (!tokens.length) return data.recipes.slice().sort(byName);
+    if (!tokens.length) return data.recipes.slice().sort(byName).map(function (r) { return { recipe: r, score: 0, byIngredient: false }; });
 
     function hit(hay, t) {
       if (hay.indexOf(t) !== -1) return true;
@@ -296,19 +337,30 @@
 
     var scored = [];
     searchIndex.forEach(function (entry) {
-      var score = 0;
+      var score = 0, byIngredient = false;
       for (var i = 0; i < tokens.length; i++) {
         var t = tokens[i];
         if (hit(entry.names, t)) score += 3;
         else if (hit(entry.labels, t)) score += 2;
-        // Chinese typed without spaces, like 台灣牛肉: every character appears somewhere.
-        else if (CJK.test(t) && t.split("").every(function (c) { return (entry.names + entry.labels).indexOf(c) !== -1; })) score += 1;
+        else if (hit(entry.ingredients, t)) { score += 1; byIngredient = true; }
+        else if (CJK.test(t)) {
+          var level = coverChinese(entry, t);
+          if (!level) return;
+          if (level === 1) byIngredient = true;
+          score += level === 2 ? 1.5 : 0.5;
+        }
         else return;
       }
-      scored.push({ recipe: entry.recipe, score: score });
+      scored.push({ recipe: entry.recipe, score: score, byIngredient: byIngredient });
     });
-    scored.sort(function (a, b) { return b.score - a.score || byName(a.recipe, b.recipe); });
-    return scored.map(function (s) { return s.recipe; });
+    scored.sort(function (a, b) {
+      return (a.byIngredient - b.byIngredient) || b.score - a.score || byName(a.recipe, b.recipe);
+    });
+    return scored;
+  }
+
+  function search(query) {
+    return searchScored(query).map(function (s) { return s.recipe; });
   }
 
   // ---------- home ----------
@@ -457,6 +509,10 @@
         var zh = zhOf(attr.id, value[0]);
         var enWords = normalize(value[1]).split(/\s+/).filter(function (w) { return w && STOP_WORDS.indexOf(w) === -1; });
         var zhLabel = normalize(zh[0]).replace(/\s+/g, "");
+        // Chinese aliases from content.js count as the label too, longest first: 鸡蛋 is Egg.
+        var zhNames = [zhLabel].concat(normalize(((content.searchAliases || {})[attr.id] || {})[value[0]] || "")
+          .split(/\s+/).filter(function (w) { return CJK.test(w); }))
+          .filter(Boolean).sort(function (x, y) { return y.length - x.length; });
         var pinyin = normalize(zh[1]).replace(/\s+/g, "");
         var rest = words.slice();
         var hit = false;
@@ -465,9 +521,10 @@
           if (!w) return;
           if (CJK.test(w)) {
             // 牛肉麵 holds 牛肉 (Beef); 早 starts 早餐 (Breakfast).
-            var at = zhLabel ? w.indexOf(zhLabel) : -1;
+            var name = zhNames.filter(function (z) { return w.indexOf(z) !== -1; })[0] || zhLabel;
+            var at = name ? w.indexOf(name) : -1;
             if (at !== -1) {
-              rest[i] = words[i].slice(0, at) + words[i].slice(at + zhLabel.length);
+              rest[i] = words[i].slice(0, at) + words[i].slice(at + name.length);
               hit = true;
             } else if (zhLabel && (zhLabel.indexOf(w) === 0 || (w.length > 1 && zhLabel.indexOf(w) !== -1))) {
               rest[i] = "";
@@ -712,7 +769,9 @@
     function update(pushUrl) {
       var sel = selected();
       // Searching keeps the best matches first; otherwise A to Z.
-      var base = query ? search(query).filter(function (r) { return recipes.indexOf(r) !== -1; }) : recipes;
+      var scored = query ? searchScored(query).filter(function (s) { return recipes.indexOf(s.recipe) !== -1; }) : [];
+      var byIngredient = scored.filter(function (s) { return s.byIngredient; }).map(function (s) { return s.recipe; });
+      var base = query ? scored.map(function (s) { return s.recipe; }) : recipes;
       var shown = base.filter(function (r) { return sel.every(function (s) { return matches(r, s); }); });
 
       // Count beside each option: what would match if it were on, given the other filters.
@@ -737,11 +796,24 @@
       // Recipe pages link back to this list as it is now (search and filters included).
       var from = hashFor(["recipes"], p).slice(2);
 
-      if (query) countEl.textContent = plural(shown.length, "recipe") + " matching “" + query + "”";
+      // Recipes found only through their ingredient list come after the rest, under their own heading.
+      var named = shown.filter(function (r) { return byIngredient.indexOf(r) === -1; });
+      var used = shown.filter(function (r) { return byIngredient.indexOf(r) !== -1; });
+      if (query && named.length && used.length) countEl.textContent = plural(named.length, "recipe") + " matching “" + query + "”, and " + used.length + " more found in their ingredient lists";
+      else if (query && used.length) countEl.textContent = plural(used.length, "recipe") + " with “" + query + "” in their ingredient lists";
+      else if (query) countEl.textContent = plural(shown.length, "recipe") + " matching “" + query + "”";
       else if (sel.length) countEl.textContent = "Showing " + shown.length + " of " + plural(recipes.length, "recipe");
       else countEl.textContent = plural(recipes.length, "recipe");
       gridHolder.innerHTML = "";
-      if (shown.length) gridHolder.appendChild(recipeGrid(shown, from));
+      if (shown.length && query && used.length) {
+        if (named.length) gridHolder.appendChild(recipeGrid(named, from));
+        var head = el("h2", { class: "results-subhead" });
+        head.appendChild(document.createTextNode("Found in the ingredient list "));
+        head.appendChild(el("span", { class: "results-subhead-zh", lang: "zh-Hant" }, "食材清單中找到"));
+        gridHolder.appendChild(head);
+        gridHolder.appendChild(recipeGrid(used, from));
+      }
+      else if (shown.length) gridHolder.appendChild(recipeGrid(shown, from));
       else gridHolder.appendChild(el("p", { class: "empty" }, query
         ? "No recipes found. Try a dish name, an ingredient, or pinyin (niu rou mian)."
         : "No recipes match these filters."));

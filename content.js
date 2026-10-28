@@ -100,6 +100,19 @@ window.SITE_CONTENT = {
     },
   },
 
+  // Extra words search treats as a category or filter label (by attribute id, then value id),
+  // e.g. the everyday Chinese word for egg, 雞蛋, where the label is just 蛋.
+  searchAliases: {
+    ingredient: {
+      "egg": "雞蛋 eggs",
+      "vegetables": "蔬菜 青菜",
+    },
+    diet: {
+      "vegetarian": "素 吃素 meatless meat-free",
+      "vegan": "純素 全素 plant-based",
+    },
+  },
+
   // pinyin: the Chinese name in pinyin, no tones. also: simplified characters and other names.
   search: {
     "Stir-fried Tomato and Scrambled Eggs": { pinyin: "fan qie chao dan", also: "番茄炒蛋 西红柿炒鸡蛋 xi hong shi chao ji dan" },
