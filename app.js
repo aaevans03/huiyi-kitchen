@@ -134,11 +134,13 @@
   }
 
   var lastPath = null;
+  var headerCleanup = null; // undoes compactHeader() when the view changes
 
   function render() {
     var route = parseHash();
     var parts = route.parts;
     var path = parts.join("/");
+    if (headerCleanup) { headerCleanup(); headerCleanup = null; }
     main.innerHTML = "";
 
     // A random recipe; replacing the address keeps "back" pointing at the page before.
@@ -177,6 +179,12 @@
   }
 
   // ---------- shared pieces ----------
+
+  // A page title: English, then the Chinese in a lighter style.
+  function fillTitle(node, en, zh) {
+    node.textContent = en;
+    if (zh) node.appendChild(el("span", { class: "title-zh", lang: "zh-Hant" }, zh));
+  }
 
   // crumbs: [{ text, href? }]; the last one is the current page.
   function breadcrumb(crumbs) {
@@ -605,11 +613,9 @@
 
   // Every recipe, with search and filters. Filters can start on from the URL (?kind=noodles).
   function buildListing(params) {
-    var title = "Recipes";
-    var zhTitle = "全部食譜";
     var recipes = data.recipes.slice().sort(byName);
     var filterAttrs = data.attributes.filter(function (a) { return !a.tagOnly; });
-    setPage("recipes", title);
+    setPage("recipes", "Recipes");
 
     // Only show filters that can narrow this list.
     filterAttrs = filterAttrs.filter(function (a) {
@@ -619,12 +625,36 @@
       });
     });
 
-    main.appendChild(breadcrumb([{ text: "Home", href: "#/" }, { text: title }]));
+    var crumbs = breadcrumb([{ text: "Home", href: "#/" }, { text: "Recipes" }]);
+    main.appendChild(crumbs);
     var head = el("div", { class: "page-head" });
-    var h1 = el("h1", null, title);
-    if (zhTitle) h1.appendChild(el("span", { class: "title-zh", lang: "zh-Hant" }, zhTitle));
+    var h1 = el("h1");
+    fillTitle(h1, "Recipes", "全部食譜");
     head.appendChild(h1);
     main.appendChild(head);
+
+    // With exactly one filter on, the page is named for it (like the old category pages):
+    // "Noodles 麵食", with Home › Recipes › Noodles. Otherwise it's "Recipes 全部食譜".
+    var titleKey = "";
+    function retitle(sel) {
+      var one = sel.length === 1 && sel[0].ids.length === 1 ? sel[0] : null;
+      var key = one ? one.attr.id + ":" + one.ids[0] : "";
+      if (key === titleKey) return;
+      titleKey = key;
+      var en = "Recipes", zh = "全部食譜", trail = [{ text: "Home", href: "#/" }, { text: "Recipes" }];
+      if (one) {
+        en = findValue(one.attr, one.ids[0])[1];
+        zh = zhOf(one.attr.id, one.ids[0])[0];
+        trail = [{ text: "Home", href: "#/" }, { text: "Recipes", href: "#/recipes" }, { text: en }];
+      }
+      setPage("recipes", en);
+      fillTitle(h1, en, zh);
+      var compact = document.querySelector("#header-context .header-title");
+      if (compact) fillTitle(compact, en, zh);
+      var next = breadcrumb(trail);
+      crumbs.replaceWith(next);
+      crumbs = next;
+    }
 
     // The search box narrows the list as you type.
     var query = (params.get("q") || "").trim();
@@ -696,7 +726,9 @@
           btn.classList.toggle("is-empty", n === 0 && btn.getAttribute("aria-pressed") !== "true");
         });
       });
-      clear.hidden = sel.length === 0;
+      // Hidden but still taking its space, so the panel doesn't shift when it appears.
+      clear.classList.toggle("is-hidden", sel.length === 0);
+      retitle(sel);
 
       var p = new URLSearchParams();
       if (query) p.set("q", query);
@@ -719,21 +751,84 @@
     var setQuery = function () {
       query = input.value.trim();
       update(true);
+      // Searching from the compact header: bring the results back to their top, so the
+      // count and first recipes aren't left hidden under the header.
+      if (document.body.classList.contains("header-compact")) snapIntoPlace(true);
     };
     input.addEventListener("input", setQuery);
     form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
+
+    // After a filter change, scroll so the filters sit just under the compact header and
+    // the results start from the top. Only where the filters stay beside the results,
+    // unless anyWidth (searching). 72px matches .header-compact .filters { top } in style.css.
+    function snapIntoPlace(anyWidth) {
+      if (!anyWidth && !window.matchMedia("(min-width: 961px)").matches) return;
+      var target = layout.getBoundingClientRect().top + window.scrollY - 72;
+      if (Math.abs(window.scrollY - target) > 1) window.scrollTo({ top: target });
+    }
 
     aside.addEventListener("click", function (e) {
       var btn = e.target.closest("button.toggle");
       if (!btn) return;
       btn.setAttribute("aria-pressed", btn.getAttribute("aria-pressed") === "true" ? "false" : "true");
       update(true);
+      snapIntoPlace();
     });
     clear.addEventListener("click", function () {
       aside.querySelectorAll("button.toggle").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
       update(true);
+      snapIntoPlace();
     });
     update(false);
+    var zhNow = h1.querySelector(".title-zh");
+    compactHeader(head, form, h1.firstChild.textContent, zhNow ? zhNow.textContent : "");
+  }
+
+  // Once the page heading (trigger) scrolls under the header, the header shrinks, shows the
+  // page title, and takes over one control (moving: the recipes search box, or a recipe's
+  // language toggle), leaving more of the screen for the page.
+  // Wide screens only; on phones the header doesn't stay on screen.
+  function compactHeader(trigger, moving, en, zh) {
+    var header = document.querySelector(".site-header");
+    var slot = document.getElementById("header-context");
+    var label = el("p", { class: "header-title" });
+    fillTitle(label, en, zh);
+    slot.appendChild(label);
+    var home = moving.parentNode;
+    var after = moving.nextSibling;
+    var wide = window.matchMedia("(min-width: 721px)");
+    // Measured before shrinking, so the switch point doesn't move as the header changes size.
+    var fullHeight = header.offsetHeight;
+    var on = false;
+
+    function set(compact) {
+      if (compact === on) return;
+      on = compact;
+      var focused = moving.contains(document.activeElement) ? document.activeElement : null;
+      if (compact) {
+        home.style.minHeight = home.offsetHeight + "px"; // keep the page from jumping
+        slot.appendChild(moving);
+      } else {
+        home.insertBefore(moving, after);
+        home.style.minHeight = "";
+      }
+      if (focused) focused.focus({ preventScroll: true });
+      document.body.classList.toggle("header-compact", compact);
+    }
+
+    function check() {
+      set(wide.matches && trigger.getBoundingClientRect().bottom < fullHeight);
+    }
+
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    check();
+    headerCleanup = function () {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+      set(false);
+      slot.innerHTML = "";
+    };
   }
 
   // ---------- recipe ----------
@@ -885,6 +980,8 @@
     });
     article.appendChild(tags);
     main.appendChild(article);
+
+    compactHeader(h1, toggle, recipe.name, recipe.zh);
 
     toggle.addEventListener("click", function (e) {
       var b = e.target.closest("button[data-lang]");

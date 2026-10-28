@@ -82,6 +82,40 @@ main:focus { outline: none; }
 .brand-zh { font-family: var(--font-zh-display); font-size: 28px; font-weight: 700; letter-spacing: 0.08em; }
 .brand-en { font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: var(--orange); margin-top: 4px; }
 
+/* Compact header (recipes page, scrolled): 20px shorter, holding the page title and search.
+   The bottom margin grows as the header shrinks, so the page below doesn't move. */
+.site-header { transition: margin-bottom 0.25s ease; }
+.header-inner { transition: min-height 0.25s ease; }
+.brand-zh, .brand-en { transition: font-size 0.25s ease, margin-top 0.25s ease, opacity 0.25s ease; }
+.header-context {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 20px;
+  opacity: 0; visibility: hidden; transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s 0.25s;
+}
+.header-compact .site-header { margin-bottom: 20px; }
+.header-compact .header-inner { min-height: 56px; }
+.header-compact .brand-zh { font-size: 21px; }
+.header-compact .brand-en { font-size: 0; margin-top: 0; opacity: 0; }
+/* The nav links step aside to make room; the logo still goes home. */
+.site-nav { max-width: 300px; transition: opacity 0.25s ease, max-width 0.25s ease, margin-left 0.25s ease, visibility 0s; }
+.header-compact .site-nav {
+  opacity: 0; visibility: hidden; max-width: 0; margin-left: -24px; overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.25s ease, margin-left 0.25s ease, visibility 0s 0.25s;
+}
+.header-compact .header-context {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s;
+}
+.header-title {
+  margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; /* long recipe names */
+  font-family: var(--font-serif); font-weight: 600; font-size: 20px; padding-left: 20px; border-left: 1px solid var(--line);
+}
+.header-title .title-zh { margin-left: 10px; }
+.header-context .search-form-compact { flex: 0 1 420px; min-width: 0; margin-left: auto; }
+.header-context .search-form-compact input, .header-context .search-form-compact .btn-primary { min-height: 38px; }
+.header-context .lang-toggle { flex: none; margin-left: auto; }
+.header-context .lang-toggle button { min-height: 30px; padding: 4px 14px; }
+
 .site-nav { display: flex; gap: 4px; }
 .site-nav a {
   color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px;
@@ -243,12 +277,19 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .search-form-compact .btn-primary { min-height: 44px; padding: 0 20px; font-size: 15px; box-shadow: none; }
 .listing { display: grid; grid-template-columns: 260px 1fr; gap: 40px; align-items: start; }
 .listing.no-filters { grid-template-columns: 1fr; }
+/* Tall enough to scroll the filters up under the compact header, even with few results. */
+@media (min-width: 961px) { .listing { min-height: calc(100vh - 72px); } }
+/* Stays beside the recipes and scrolls on its own if it's taller than the screen. */
 .filters {
-  position: sticky; top: 100px; background: var(--surface); border: 1px solid var(--line);
+  position: sticky; top: 100px; max-height: calc(100vh - 116px); overflow-y: auto;
+  transition: top 0.25s ease, max-height 0.25s ease;
+  background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);
 }
+.header-compact .filters { top: 72px; max-height: calc(100vh - 88px); }
 .filters-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
 .filters-head h2 { font-size: 22px; }
+#clear-filters.is-hidden { visibility: hidden; }
 .filter-group + .filter-group { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .filter-group h3 {
   font-family: var(--font-sans); font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
@@ -457,7 +498,7 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
   .random-link .region-names { align-items: flex-start; }
   .category-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
   .listing { grid-template-columns: 1fr; gap: 24px; }
-  .filters { position: static; padding: 20px; }
+  .filters { position: static; padding: 20px; max-height: none; overflow: visible; }
   .recipe.lang-both .bilingual, .recipe.lang-both .recipe-intro { column-gap: 40px; gap: 0 40px; }
 }
 
