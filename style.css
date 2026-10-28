@@ -173,6 +173,17 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .pill.is-empty { opacity: 0.5; }
 .pill-zh { font-size: 13px; color: var(--muted); font-weight: 400; }
 .pill[aria-pressed="true"] .pill-zh { color: rgba(255, 255, 255, 0.85); }
+/* Filter buttons on the recipes page use the sage accent: hovering tints them sage, and a
+   chosen filter turns sage with dark text (7.1:1), so "what you picked" reads the same as
+   the chosen language and checked ingredients on a recipe page. */
+.pill.toggle:hover { border-color: var(--accent-deep); background: var(--accent-soft); }
+.pill.toggle[aria-pressed="true"] {
+  background: var(--accent); border-color: var(--accent-deep); color: var(--charcoal);
+  box-shadow: 0 3px 10px rgba(92, 138, 87, 0.25);
+}
+.pill.toggle[aria-pressed="true"]:hover { background: #95b592; }
+.pill.toggle[aria-pressed="true"] .count { background: #d6e2d4; color: var(--charcoal); }
+.pill.toggle[aria-pressed="true"] .pill-zh { color: #384236; }
 
 /* photos */
 .thumb {
