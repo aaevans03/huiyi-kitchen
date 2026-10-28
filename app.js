@@ -832,7 +832,8 @@
       if (document.body.classList.contains("header-compact")) snapIntoPlace(true);
     };
     input.addEventListener("input", setQuery);
-    form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
+    // Pressing Search jumps down the same way a filter click does.
+    form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); snapIntoPlace(); });
 
     // After a filter change, scroll so the filters sit just under the compact header and
     // the results start from the top. Only where the filters stay beside the results,
