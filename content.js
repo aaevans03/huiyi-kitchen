@@ -94,6 +94,10 @@ window.SITE_CONTENT = {
       "tofu": ["豆腐", "dou fu"],
       "vegetables": ["蔬菜", "shu cai"],
     },
+    diet: {
+      "vegetarian": ["素食", "su shi"],
+      "vegan": ["純素", "chun su"],
+    },
   },
 
   // pinyin: the Chinese name in pinyin, no tones. also: simplified characters and other names.

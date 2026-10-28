@@ -82,6 +82,40 @@ main:focus { outline: none; }
 .brand-zh { font-family: var(--font-zh-display); font-size: 28px; font-weight: 700; letter-spacing: 0.08em; }
 .brand-en { font-size: 11px; font-weight: 600; letter-spacing: 0.32em; color: var(--orange); margin-top: 4px; }
 
+/* Compact header (recipes page, scrolled): 20px shorter, holding the page title and search.
+   The bottom margin grows as the header shrinks, so the page below doesn't move. */
+.site-header { transition: margin-bottom 0.25s ease; }
+.header-inner { transition: min-height 0.25s ease; }
+.brand-zh, .brand-en { transition: font-size 0.25s ease, margin-top 0.25s ease, opacity 0.25s ease; }
+.header-context {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 20px;
+  opacity: 0; visibility: hidden; transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s 0.25s;
+}
+.header-compact .site-header { margin-bottom: 20px; }
+.header-compact .header-inner { min-height: 56px; }
+.header-compact .brand-zh { font-size: 21px; }
+.header-compact .brand-en { font-size: 0; margin-top: 0; opacity: 0; }
+/* The nav links step aside to make room; the logo still goes home. */
+.site-nav { max-width: 300px; transition: opacity 0.25s ease, max-width 0.25s ease, margin-left 0.25s ease, visibility 0s; }
+.header-compact .site-nav {
+  opacity: 0; visibility: hidden; max-width: 0; margin-left: -24px; overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.25s ease, margin-left 0.25s ease, visibility 0s 0.25s;
+}
+.header-compact .header-context {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s;
+}
+.header-title {
+  margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; /* long recipe names */
+  font-family: var(--font-serif); font-weight: 600; font-size: 20px; padding-left: 20px; border-left: 1px solid var(--line);
+}
+.header-title .title-zh { margin-left: 10px; }
+.header-context .search-form-compact { flex: 0 1 420px; min-width: 0; margin-left: auto; }
+.header-context .search-form-compact input, .header-context .search-form-compact .btn-primary { min-height: 38px; }
+.header-context .lang-toggle { flex: none; margin-left: auto; }
+.header-context .lang-toggle button { min-height: 30px; padding: 4px 14px; }
+
 .site-nav { display: flex; gap: 4px; }
 .site-nav a {
   color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px;
@@ -150,14 +184,12 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 /* ---------- home ---------- */
 
 .hero { padding: 8px 0 0; }
-/* Same width as the recipe type grid below it. */
+/* Same width as the recipe type grid below it. The accent bar is a background
+   (not a clipped ::before) so the filter dropdown can spill out of the card. */
 .search-card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 20px; padding: 24px 28px 26px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
-}
-.search-card::before {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 5px;
-  background: linear-gradient(90deg, var(--orange-light), var(--orange));
+  background: linear-gradient(90deg, var(--orange-light), var(--orange)) top / 100% 5px no-repeat, var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px; padding: 24px 28px 26px; box-shadow: var(--shadow-sm); position: relative;
 }
 .search-card h1 { font-size: clamp(24px, 3vw, 30px); margin-bottom: 2px; }
 .search-hint { color: var(--muted); font-size: 15px; margin-bottom: 16px; }
@@ -169,6 +201,25 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 }
 .search-form input::placeholder { color: #9a8d81; }
 .search-form input:focus { outline: none; border-color: var(--orange-light); background: #fff; box-shadow: 0 0 0 4px rgba(232, 135, 92, 0.2); }
+
+/* Dropdown of filters that match the typed words, under the home search box. */
+.search-field { position: relative; flex: 1; min-width: 0; display: flex; }
+.search-field input { flex: 1; }
+.filter-suggest {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 10;
+  list-style: none; margin: 0; padding: 6px 0;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+}
+.filter-suggest[hidden] { display: none; }
+.filter-suggest a {
+  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+  color: var(--charcoal); text-decoration: none;
+}
+.filter-suggest a[aria-selected="true"] { background: var(--orange-soft); }
+.suggest-name { display: inline-flex; align-items: baseline; gap: 8px; font-weight: 500; }
+.suggest-icon { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.suggest-group { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest-count { font-size: 13px; color: var(--muted); white-space: nowrap; }
 
 /* Country buttons: each opens that region's recipes. */
 .region-links { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; margin-top: 48px; }
@@ -226,12 +277,19 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .search-form-compact .btn-primary { min-height: 44px; padding: 0 20px; font-size: 15px; box-shadow: none; }
 .listing { display: grid; grid-template-columns: 260px 1fr; gap: 40px; align-items: start; }
 .listing.no-filters { grid-template-columns: 1fr; }
+/* Tall enough to scroll the filters up under the compact header, even with few results. */
+@media (min-width: 961px) { .listing { min-height: calc(100vh - 72px); } }
+/* Stays beside the recipes and scrolls on its own if it's taller than the screen. */
 .filters {
-  position: sticky; top: 100px; background: var(--surface); border: 1px solid var(--line);
+  position: sticky; top: 100px; max-height: calc(100vh - 116px); overflow-y: auto;
+  transition: top 0.25s ease, max-height 0.25s ease;
+  background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);
 }
+.header-compact .filters { top: 72px; max-height: calc(100vh - 88px); }
 .filters-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
 .filters-head h2 { font-size: 22px; }
+#clear-filters.is-hidden { visibility: hidden; }
 .filter-group + .filter-group { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
 .filter-group h3 {
   font-family: var(--font-sans); font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
@@ -385,7 +443,7 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .tt-modal::backdrop { background: rgba(46, 42, 39, 0.45); }
 .tt-modal h2 { margin-bottom: 16px; }
 .tt-modal p { margin: 0 0 12px; }
-.tt-modal button, .tt-bar button, .tt-run, .tt-actions button {
+.tt-modal button, .tt-bar button, .tt-actions button {
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 8px 18px; font-weight: 500;
 }
 .tt-modal button:hover, .tt-bar button:hover, .tt-actions button:hover { border-color: var(--orange); color: var(--orange); }
@@ -399,7 +457,6 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
   padding: 14px 24px; border-top: 1px solid var(--line); background: var(--surface); box-shadow: 0 -6px 20px rgba(74, 52, 34, 0.08);
 }
-.tt-run { position: fixed; right: 16px; bottom: 16px; z-index: 5; box-shadow: var(--shadow-sm); font-size: 14px; }
 .tt-task { margin: 0; flex: 1; }
 .tt-results h1 { margin-bottom: 20px; }
 .tt-results h2 { margin: 28px 0 12px; font-size: 20px; }
@@ -441,7 +498,7 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
   .random-link .region-names { align-items: flex-start; }
   .category-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
   .listing { grid-template-columns: 1fr; gap: 24px; }
-  .filters { position: static; padding: 20px; }
+  .filters { position: static; padding: 20px; max-height: none; overflow: visible; }
   .recipe.lang-both .bilingual, .recipe.lang-both .recipe-intro { column-gap: 40px; gap: 0 40px; }
 }
 

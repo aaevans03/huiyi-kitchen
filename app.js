@@ -5,8 +5,9 @@
 //   #/                        home (search, region filters, recipe types)
 //   #/?q=beef&region=taiwan   home with search results showing
 //   #/recipes                 every recipe, with filters
-//   #/kind/noodles            one category (any attribute shown on the home page)
-//   #/recipe/beef-noodle-soup recipe page (?from=kind:noodles sets the breadcrumb)
+//   #/recipes?kind=noodles    recipes with a filter already on (what the home page links to)
+//   #/kind/noodles            old category link; redirects to #/recipes?kind=noodles
+//   #/recipe/beef-noodle-soup recipe page (?from=recipes?kind=noodles sets the breadcrumb)
 //   #/about, #/contact     (no longer linked from the nav)
 
 (function () {
@@ -109,6 +110,13 @@
     return path + (s ? "?" + s : "");
   }
 
+  // The recipes page with one filter already on, e.g. #/recipes?kind=noodles.
+  function filteredHash(attrId, valueId) {
+    var p = new URLSearchParams();
+    p.set(attrId, valueId);
+    return hashFor(["recipes"], p);
+  }
+
   // Updates the address bar for in-view changes (search, filters) without a new history entry.
   function replaceParams(params) {
     var route = parseHash();
@@ -126,11 +134,13 @@
   }
 
   var lastPath = null;
+  var headerCleanup = null; // undoes compactHeader() when the view changes
 
   function render() {
     var route = parseHash();
     var parts = route.parts;
     var path = parts.join("/");
+    if (headerCleanup) { headerCleanup(); headerCleanup = null; }
     main.innerHTML = "";
 
     // A random recipe; replacing the address keeps "back" pointing at the page before.
@@ -140,12 +150,17 @@
       return;
     }
 
+    // Old category links (#/kind/noodles) open the recipes page with that filter on.
+    if (parts.length === 2 && attrById(parts[0]) && findValue(attrById(parts[0]), parts[1])) {
+      window.location.replace(filteredHash(parts[0], parts[1]));
+      return;
+    }
+
     if (parts.length === 0) buildHome();
-    else if (path === "recipes") buildListing(null, route.params);
+    else if (path === "recipes") buildListing(route.params);
     else if (path === "about") buildAbout();
     else if (path === "contact") buildContact();
     else if (parts[0] === "recipe" && parts.length === 2) buildRecipe(parts[1], route.params);
-    else if (parts.length === 2 && attrById(parts[0]) && attrById(parts[0]).onHome) buildListing({ attr: attrById(parts[0]), valueId: parts[1] }, route.params);
     else buildNotFound();
 
     // A new view starts at the top; staying on the same view (e.g. back from a filter) doesn't jump.
@@ -164,6 +179,12 @@
   }
 
   // ---------- shared pieces ----------
+
+  // A page title: English, then the Chinese in a lighter style.
+  function fillTitle(node, en, zh) {
+    node.textContent = en;
+    if (zh) node.appendChild(el("span", { class: "title-zh", lang: "zh-Hant" }, zh));
+  }
 
   // crumbs: [{ text, href? }]; the last one is the current page.
   function breadcrumb(crumbs) {
@@ -292,8 +313,8 @@
 
   // ---------- home ----------
 
-  // The home page only leads somewhere: search goes to the recipes page, a country
-  // goes to that region's page, a recipe type goes to its category page.
+  // The home page only leads somewhere: search, a country, or a recipe type all open
+  // the recipes page (with that search or filter already applied).
   function buildHome() {
     setPage("home");
     var regionAttr = attrById("region");
@@ -303,7 +324,9 @@
     var card = el("div", { class: "search-card" });
     card.appendChild(el("h1", null, "Find Recipes"));
     card.appendChild(el("p", { class: "search-hint" }, "Search in English, 中文, or pinyin"));
-    card.appendChild(searchForm("", "home"));
+    var form = searchForm("", "home");
+    filterSuggestions(form.querySelector("input"));
+    card.appendChild(form);
     hero.appendChild(card);
 
     if (regionAttr) {
@@ -311,7 +334,7 @@
       regionAttr.values.forEach(function (value) {
         var zh = zhOf("region", value[0]);
         var a = el("a", {
-          class: "region-link", href: hashFor([regionAttr.id, value[0]]),
+          class: "region-link", href: filteredHash(regionAttr.id, value[0]),
           "data-log": "link", "data-label": value[1],
         });
         if (zh[2] && zh[2].length) {
@@ -352,7 +375,7 @@
         var zh = zhOf(kindAttr.id, value[0]);
         var li = el("li");
         var a = el("a", {
-          class: "category-card", href: hashFor([kindAttr.id, value[0]]),
+          class: "category-card", href: filteredHash(kindAttr.id, value[0]),
           "data-log": "link", "data-label": value[1],
         });
         a.appendChild(thumb(content.images.category[value[0]], 700, ""));
@@ -369,12 +392,17 @@
   }
 
   function shuffleIcon() {
+    return lineIcon("shuffle-icon", ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]);
+  }
+
+  // A 24×24 stroked icon from SVG path data.
+  function lineIcon(className, paths) {
     var ns = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("class", "shuffle-icon");
+    svg.setAttribute("class", className);
     svg.setAttribute("aria-hidden", "true");
-    ["M16 3h5v5", "M4 20 21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"].forEach(function (d) {
+    paths.forEach(function (d) {
       var path = document.createElementNS(ns, "path");
       path.setAttribute("d", d);
       svg.appendChild(path);
@@ -411,30 +439,183 @@
     return form;
   }
 
-  // ---------- listing (one category, or every recipe) ----------
+  // ---------- filter suggestions ----------
 
-  // category: { attr, valueId } or null for every recipe.
-  function buildListing(category, params) {
-    var recipes, title, zhTitle = "", from = null, filterAttrs;
+  // Filters whose name matches what's typed. Each: { attr, value, rest }, where rest is
+  // the query without the words the filter covers ("beef noodles" → Noodles, rest "beef").
+  var STOP_WORDS = ["and", "or"];
 
-    if (category) {
-      var value = findValue(category.attr, category.valueId);
-      if (!value) { buildNotFound(); return; }
-      title = value[1];
-      zhTitle = zhOf(category.attr.id, value[0])[0];
-      from = category.attr.id + ":" + value[0];
-      recipes = data.recipes.filter(function (r) { return hasValue(r, category.attr, value[0]); });
-      filterAttrs = data.attributes.filter(function (a) { return a.asFilter && a.id !== category.attr.id; });
-      setPage("category", title);
-    } else {
-      title = "Recipes";
-      zhTitle = "全部食譜";
-      from = "recipes";
-      recipes = data.recipes.slice();
-      filterAttrs = data.attributes.slice();
-      setPage("recipes", title);
+  function filterMatches(query) {
+    var words = String(query || "").split(/\s+/).filter(Boolean);
+    var norm = words.map(function (w) { return normalize(w).replace(/\s+/g, ""); });
+    if (!norm.join("")) return [];
+    var out = [];
+
+    data.attributes.forEach(function (attr) {
+      if (attr.tagOnly) return; // labels like Vegetarian are found by search, not offered as filters
+      attr.values.forEach(function (value) {
+        var zh = zhOf(attr.id, value[0]);
+        var enWords = normalize(value[1]).split(/\s+/).filter(function (w) { return w && STOP_WORDS.indexOf(w) === -1; });
+        var zhLabel = normalize(zh[0]).replace(/\s+/g, "");
+        var pinyin = normalize(zh[1]).replace(/\s+/g, "");
+        var rest = words.slice();
+        var hit = false;
+
+        norm.forEach(function (w, i) {
+          if (!w) return;
+          if (CJK.test(w)) {
+            // 牛肉麵 holds 牛肉 (Beef); 早 starts 早餐 (Breakfast).
+            var at = zhLabel ? w.indexOf(zhLabel) : -1;
+            if (at !== -1) {
+              rest[i] = words[i].slice(0, at) + words[i].slice(at + zhLabel.length);
+              hit = true;
+            } else if (zhLabel && (zhLabel.indexOf(w) === 0 || (w.length > 1 && zhLabel.indexOf(w) !== -1))) {
+              rest[i] = "";
+              hit = true;
+            }
+            return;
+          }
+          if (w.length < 2 || STOP_WORDS.indexOf(w) !== -1) return;
+          var stem = w.length > 3 ? w.replace(/s$/, "") : w; // "eggs" → "egg"
+          if (enWords.some(function (e) { return e.indexOf(stem) === 0; })) {
+            rest[i] = "";
+            hit = true;
+          }
+        });
+
+        // Pinyin, spaced or not: "niu rou mian" and "niuroumian" both hold niurou (Beef).
+        if (!hit && pinyin.length >= 4) {
+          for (var i = 0; i < norm.length && !hit; i++) {
+            var run = "";
+            for (var j = i; j < norm.length && run.length < pinyin.length; j++) {
+              run += norm[j];
+              if (run === pinyin) {
+                for (var k = i; k <= j; k++) rest[k] = "";
+                hit = true;
+              }
+            }
+          }
+        }
+
+        if (hit) out.push({ attr: attr, value: value, rest: rest.join(" ").replace(/\s+/g, " ").trim() });
+      });
+    });
+    return out;
+  }
+
+  // On the home page: as people type, a dropdown under the search box lists filters that
+  // match their words. Picking one opens the recipes page with that filter on (and any
+  // other words still searched). The first row searches the typed words as they are, so
+  // filters read as a shortcut, not the only way. Enter without a highlighted row searches too.
+  var SEARCH_ICON = ["M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14", "M20 20l-4-4"];
+  var FILTER_ICON = ["M4 5h16l-6 8v5l-4 2v-7z"];
+
+  function filterSuggestions(input) {
+    var field = el("div", { class: "search-field" });
+    input.parentNode.insertBefore(field, input);
+    field.appendChild(input);
+    var list = el("ul", { id: "filter-suggest", class: "filter-suggest", role: "listbox", "aria-label": "Search suggestions" });
+    list.hidden = true;
+    field.appendChild(list);
+    var status = el("p", { class: "visually-hidden", "aria-live": "polite" });
+    field.appendChild(status);
+
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-controls", list.id);
+    input.setAttribute("aria-expanded", "false");
+
+    var options = [];
+    var active = -1;
+
+    function setActive(i) {
+      active = i;
+      options.forEach(function (o, j) { o.setAttribute("aria-selected", j === i ? "true" : "false"); });
+      if (i === -1) input.removeAttribute("aria-activedescendant");
+      else input.setAttribute("aria-activedescendant", options[i].id);
     }
-    recipes.sort(byName);
+
+    function close() {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      setActive(-1);
+    }
+
+    function update() {
+      list.innerHTML = "";
+      var found = filterMatches(input.value).map(function (m) {
+        var base = m.rest ? search(m.rest) : data.recipes;
+        m.count = base.filter(function (r) { return hasValue(r, m.attr, m.value[0]); }).length;
+        return m;
+      }).filter(function (m) { return m.count > 0; }).slice(0, 6);
+
+      options = [];
+      if (found.length) {
+        var query = input.value.trim();
+        var qp = new URLSearchParams();
+        qp.set("q", query);
+        var text = el("span", { class: "suggest-name" });
+        text.appendChild(el("span", null, query));
+        addOption(hashFor(["recipes"], qp), "search", "Search: " + query, SEARCH_ICON, text,
+          "Search all recipes", plural(search(query).length, "recipe"));
+      }
+      found.forEach(function (m) {
+        var p = new URLSearchParams();
+        p.set(m.attr.id, m.value[0]);
+        if (m.rest) p.set("q", m.rest);
+        var name = el("span", { class: "suggest-name" });
+        name.appendChild(el("span", null, m.value[1]));
+        var zh = zhOf(m.attr.id, m.value[0])[0];
+        if (zh) name.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
+        addOption(hashFor(["recipes"], p), "suggested filter", m.attr.label + ": " + m.value[1], FILTER_ICON, name,
+          "Filter: " + m.attr.label + (m.rest ? " · “" + m.rest + "”" : ""), plural(m.count, "recipe"));
+      });
+
+      setActive(-1);
+      list.hidden = options.length === 0;
+      input.setAttribute("aria-expanded", options.length ? "true" : "false");
+      status.textContent = found.length ? plural(found.length, "filter") + " suggested" : "";
+    }
+
+    function addOption(href, logAction, logLabel, iconPaths, name, detail, count) {
+      var i = options.length;
+      var li = el("li", { role: "presentation" });
+      // A link, so the tree test logs it like any other click.
+      var a = el("a", {
+        id: "filter-suggest-" + i, role: "option", tabindex: "-1", href: href,
+        "data-log": logAction, "data-label": logLabel,
+      });
+      a.appendChild(lineIcon("suggest-icon", iconPaths));
+      a.appendChild(name);
+      a.appendChild(el("span", { class: "suggest-group" }, detail));
+      a.appendChild(el("span", { class: "suggest-count" }, count));
+      // Keep focus in the box while the click lands.
+      a.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      a.addEventListener("mousemove", function () { if (active !== i) setActive(i); });
+      li.appendChild(a);
+      list.appendChild(li);
+      options.push(a);
+    }
+
+    input.addEventListener("input", update);
+    input.addEventListener("focus", function () { if (input.value.trim()) update(); });
+    input.addEventListener("blur", close);
+    input.addEventListener("keydown", function (e) {
+      if (list.hidden) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1 < options.length ? active + 1 : -1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active === -1 ? options.length - 1 : active - 1); }
+      else if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "Enter" && active !== -1) { e.preventDefault(); options[active].click(); }
+    });
+  }
+
+  // ---------- recipes listing ----------
+
+  // Every recipe, with search and filters. Filters can start on from the URL (?kind=noodles).
+  function buildListing(params) {
+    var recipes = data.recipes.slice().sort(byName);
+    var filterAttrs = data.attributes.filter(function (a) { return !a.tagOnly; });
+    setPage("recipes", "Recipes");
 
     // Only show filters that can narrow this list.
     filterAttrs = filterAttrs.filter(function (a) {
@@ -444,20 +625,41 @@
       });
     });
 
-    main.appendChild(breadcrumb([{ text: "Home", href: "#/" }, { text: title }]));
+    var crumbs = breadcrumb([{ text: "Home", href: "#/" }, { text: "Recipes" }]);
+    main.appendChild(crumbs);
     var head = el("div", { class: "page-head" });
-    var h1 = el("h1", null, title);
-    if (zhTitle) h1.appendChild(el("span", { class: "title-zh", lang: "zh-Hant" }, zhTitle));
+    var h1 = el("h1");
+    fillTitle(h1, "Recipes", "全部食譜");
     head.appendChild(h1);
     main.appendChild(head);
 
-    // Only the recipes page has a search box; it narrows the list as you type.
-    var query = category ? "" : (params.get("q") || "").trim();
-    var form = null;
-    if (!category) {
-      form = searchForm(query, "recipes");
-      head.appendChild(form);
+    // With exactly one filter on, the page is named for it (like the old category pages):
+    // "Noodles 麵食", with Home › Recipes › Noodles. Otherwise it's "Recipes 全部食譜".
+    var titleKey = "";
+    function retitle(sel) {
+      var one = sel.length === 1 && sel[0].ids.length === 1 ? sel[0] : null;
+      var key = one ? one.attr.id + ":" + one.ids[0] : "";
+      if (key === titleKey) return;
+      titleKey = key;
+      var en = "Recipes", zh = "全部食譜", trail = [{ text: "Home", href: "#/" }, { text: "Recipes" }];
+      if (one) {
+        en = findValue(one.attr, one.ids[0])[1];
+        zh = zhOf(one.attr.id, one.ids[0])[0];
+        trail = [{ text: "Home", href: "#/" }, { text: "Recipes", href: "#/recipes" }, { text: en }];
+      }
+      setPage("recipes", en);
+      fillTitle(h1, en, zh);
+      var compact = document.querySelector("#header-context .header-title");
+      if (compact) fillTitle(compact, en, zh);
+      var next = breadcrumb(trail);
+      crumbs.replaceWith(next);
+      crumbs = next;
     }
+
+    // The search box narrows the list as you type.
+    var query = (params.get("q") || "").trim();
+    var form = searchForm(query, "recipes");
+    head.appendChild(form);
 
     var layout = el("div", { class: "listing" + (filterAttrs.length ? "" : " no-filters") });
     var aside = el("aside", { class: "filters", "aria-labelledby": "filters-title" });
@@ -524,14 +726,16 @@
           btn.classList.toggle("is-empty", n === 0 && btn.getAttribute("aria-pressed") !== "true");
         });
       });
-      clear.hidden = sel.length === 0;
+      // Hidden but still taking its space, so the panel doesn't shift when it appears.
+      clear.classList.toggle("is-hidden", sel.length === 0);
+      retitle(sel);
 
-      if (pushUrl) {
-        var p = new URLSearchParams();
-        if (query) p.set("q", query);
-        sel.forEach(function (s) { p.set(s.attr.id, s.ids.join(",")); });
-        replaceParams(p);
-      }
+      var p = new URLSearchParams();
+      if (query) p.set("q", query);
+      sel.forEach(function (s) { p.set(s.attr.id, s.ids.join(",")); });
+      if (pushUrl) replaceParams(p);
+      // Recipe pages link back to this list as it is now (search and filters included).
+      var from = hashFor(["recipes"], p).slice(2);
 
       if (query) countEl.textContent = plural(shown.length, "recipe") + " matching “" + query + "”";
       else if (sel.length) countEl.textContent = "Showing " + shown.length + " of " + plural(recipes.length, "recipe");
@@ -543,14 +747,24 @@
         : "No recipes match these filters."));
     }
 
-    if (form) {
-      var input = form.querySelector("input");
-      var setQuery = function () {
-        query = input.value.trim();
-        update(true);
-      };
-      input.addEventListener("input", setQuery);
-      form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
+    var input = form.querySelector("input");
+    var setQuery = function () {
+      query = input.value.trim();
+      update(true);
+      // Searching from the compact header: bring the results back to their top, so the
+      // count and first recipes aren't left hidden under the header.
+      if (document.body.classList.contains("header-compact")) snapIntoPlace(true);
+    };
+    input.addEventListener("input", setQuery);
+    form.addEventListener("submit", function (e) { e.preventDefault(); setQuery(); });
+
+    // After a filter change, scroll so the filters sit just under the compact header and
+    // the results start from the top. Only where the filters stay beside the results,
+    // unless anyWidth (searching). 72px matches .header-compact .filters { top } in style.css.
+    function snapIntoPlace(anyWidth) {
+      if (!anyWidth && !window.matchMedia("(min-width: 961px)").matches) return;
+      var target = layout.getBoundingClientRect().top + window.scrollY - 72;
+      if (Math.abs(window.scrollY - target) > 1) window.scrollTo({ top: target });
     }
 
     aside.addEventListener("click", function (e) {
@@ -558,12 +772,63 @@
       if (!btn) return;
       btn.setAttribute("aria-pressed", btn.getAttribute("aria-pressed") === "true" ? "false" : "true");
       update(true);
+      snapIntoPlace();
     });
     clear.addEventListener("click", function () {
       aside.querySelectorAll("button.toggle").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
       update(true);
+      snapIntoPlace();
     });
     update(false);
+    var zhNow = h1.querySelector(".title-zh");
+    compactHeader(head, form, h1.firstChild.textContent, zhNow ? zhNow.textContent : "");
+  }
+
+  // Once the page heading (trigger) scrolls under the header, the header shrinks, shows the
+  // page title, and takes over one control (moving: the recipes search box, or a recipe's
+  // language toggle), leaving more of the screen for the page.
+  // Wide screens only; on phones the header doesn't stay on screen.
+  function compactHeader(trigger, moving, en, zh) {
+    var header = document.querySelector(".site-header");
+    var slot = document.getElementById("header-context");
+    var label = el("p", { class: "header-title" });
+    fillTitle(label, en, zh);
+    slot.appendChild(label);
+    var home = moving.parentNode;
+    var after = moving.nextSibling;
+    var wide = window.matchMedia("(min-width: 721px)");
+    // Measured before shrinking, so the switch point doesn't move as the header changes size.
+    var fullHeight = header.offsetHeight;
+    var on = false;
+
+    function set(compact) {
+      if (compact === on) return;
+      on = compact;
+      var focused = moving.contains(document.activeElement) ? document.activeElement : null;
+      if (compact) {
+        home.style.minHeight = home.offsetHeight + "px"; // keep the page from jumping
+        slot.appendChild(moving);
+      } else {
+        home.insertBefore(moving, after);
+        home.style.minHeight = "";
+      }
+      if (focused) focused.focus({ preventScroll: true });
+      document.body.classList.toggle("header-compact", compact);
+    }
+
+    function check() {
+      set(wide.matches && trigger.getBoundingClientRect().bottom < fullHeight);
+    }
+
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    check();
+    headerCleanup = function () {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+      set(false);
+      slot.innerHTML = "";
+    };
   }
 
   // ---------- recipe ----------
@@ -593,18 +858,13 @@
     var kindAttr = attrById("kind");
     var regionAttr = attrById("region");
 
-    // Breadcrumb: the category the reader came from, or the recipe's first kind of dish.
-    var crumbs = [{ text: "Home", href: "#/" }];
-    if (params.get("from") === "recipes") crumbs.push({ text: "Recipes", href: "#/recipes" });
-    var from = (params.get("from") || "").split(":");
-    var fromAttr = attrById(from[0]);
-    var fromValue = fromAttr && hasValue(recipe, fromAttr, from[1]) ? findValue(fromAttr, from[1]) : null;
-    if (!fromValue && crumbs.length === 1 && kindAttr && valuesOf(recipe, kindAttr).length) {
-      fromAttr = kindAttr;
-      fromValue = findValue(kindAttr, valuesOf(recipe, kindAttr)[0]);
-    }
-    if (fromValue) crumbs.push({ text: fromValue[1], href: hashFor([fromAttr.id, fromValue[0]]) });
-    crumbs.push({ text: recipe.name });
+    // Breadcrumb: back to the recipes list the reader came from (with its filters),
+    // or, opened directly, the recipes list filtered to this recipe's first kind of dish.
+    var from = params.get("from") || "";
+    var recipesHref = "#/recipes";
+    if (/^recipes(\?|$)/.test(from)) recipesHref = "#/" + from;
+    else if (kindAttr && valuesOf(recipe, kindAttr).length) recipesHref = filteredHash(kindAttr.id, valuesOf(recipe, kindAttr)[0]);
+    var crumbs = [{ text: "Home", href: "#/" }, { text: "Recipes", href: recipesHref }, { text: recipe.name }];
 
     var article = el("article", { class: "recipe lang-" + currentLang() });
 
@@ -659,6 +919,13 @@
         "Origin: " + origins.map(function (id) { return findValue(regionAttr, id)[1]; }).join(", "),
         "產地：" + origins.map(function (id) { return zhOf("region", id)[0]; }).join("、"));
     }
+    // Diet: the most specific one (a vegan recipe is also tagged vegetarian).
+    var dietAttr = attrById("diet");
+    var diets = dietAttr ? valuesOf(recipe, dietAttr) : [];
+    if (diets.length) {
+      var diet = diets[diets.length - 1];
+      badge("🌱", findValue(dietAttr, diet)[1], zhOf("diet", diet)[0]);
+    }
     article.appendChild(badges);
 
     // Ingredients and steps, as English/Chinese pairs.
@@ -699,10 +966,12 @@
     // Where else this recipe lives.
     var tags = el("div", { class: "recipe-tags" });
     tags.appendChild(el("h2", { class: "visually-hidden" }, "Find similar recipes"));
-    data.attributes.filter(function (a) { return a.onHome; }).forEach(function (attr) {
+    // Labels that aren't filters (Vegetarian) link to a search for that word.
+    data.attributes.filter(function (a) { return a.onHome || a.tagOnly; }).forEach(function (attr) {
       valuesOf(recipe, attr).forEach(function (id) {
         var v = findValue(attr, id);
-        var a = el("a", { class: "pill", href: hashFor([attr.id, id]), "data-log": "link", "data-label": v[1] });
+        var href = attr.tagOnly ? hashFor(["recipes"], new URLSearchParams([["q", v[1]]])) : filteredHash(attr.id, id);
+        var a = el("a", { class: "pill", href: href, "data-log": "link", "data-label": v[1] });
         a.appendChild(el("span", null, v[1]));
         var zh = zhOf(attr.id, id)[0];
         if (zh) a.appendChild(el("span", { class: "pill-zh", lang: "zh-Hant" }, zh));
@@ -711,6 +980,8 @@
     });
     article.appendChild(tags);
     main.appendChild(article);
+
+    compactHeader(h1, toggle, recipe.name, recipe.zh);
 
     toggle.addEventListener("click", function (e) {
       var b = e.target.closest("button[data-lang]");
