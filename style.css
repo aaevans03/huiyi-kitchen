@@ -402,7 +402,7 @@ main { flex: 1; padding-top: 40px; padding-bottom: 88px; }
 .tt-modal::backdrop { background: rgba(46, 42, 39, 0.45); }
 .tt-modal h2 { margin-bottom: 16px; }
 .tt-modal p { margin: 0 0 12px; }
-.tt-modal button, .tt-bar button, .tt-run, .tt-actions button {
+.tt-modal button, .tt-bar button, .tt-actions button {
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 8px 18px; font-weight: 500;
 }
 .tt-modal button:hover, .tt-bar button:hover, .tt-actions button:hover { border-color: var(--orange); color: var(--orange); }
@@ -416,7 +416,6 @@ button.tt-submit:hover, #tt-begin:hover { background: var(--orange-hover); color
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
   padding: 14px 24px; border-top: 1px solid var(--line); background: var(--surface); box-shadow: 0 -6px 20px rgba(74, 52, 34, 0.08);
 }
-.tt-run { position: fixed; right: 16px; bottom: 16px; z-index: 5; box-shadow: var(--shadow-sm); font-size: 14px; }
 .tt-task { margin: 0; flex: 1; }
 .tt-results h1 { margin-bottom: 20px; }
 .tt-results h2 { margin: 28px 0 12px; font-size: 20px; }

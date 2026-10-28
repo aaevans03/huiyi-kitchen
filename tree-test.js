@@ -1,5 +1,6 @@
 // Test harness for two studies: a tree test and a talk-aloud test.
-//   index.html?test     starts a session: moderator picks the test and enters the participant's
+//   index.html?test     starts a session (the only way in; the public site shows no test button):
+//                       moderator picks the test and enters the participant's
 //                       name, then tasks run one at a time in a random order for each participant
 //                       (?test=tree or ?test=talk skips the picker)
 //   index.html?results  the moderator's results page: a switch between the two tests,
@@ -141,13 +142,10 @@
     return dlg;
   }
 
-  // An X in the corner that closes the screen and brings back the "Run test" button.
+  // An X in the corner that closes the screen and leaves the regular site.
   function addCloseButton(dlg) {
     var x = el("button", { type: "button", class: "tt-close", id: "tt-close", "aria-label": "Close" }, "X");
-    x.addEventListener("click", function () {
-      closeDialog();
-      showRunButton();
-    });
+    x.addEventListener("click", closeDialog);
     dlg.appendChild(x);
   }
 
@@ -157,17 +155,6 @@
   }
 
   // ---------- session flow ----------
-
-  // Button in the corner of the regular site that opens the test picker.
-  function showRunButton() {
-    if (document.getElementById("tt-run")) return;
-    var btn = el("button", { type: "button", id: "tt-run", class: "tt-run" }, "Run test");
-    btn.addEventListener("click", function () {
-      btn.remove();
-      showPicker();
-    });
-    document.body.appendChild(btn);
-  }
 
   function showPicker() {
     openDialog(function (dlg) {
@@ -789,8 +776,6 @@
       } else if (params.has("test")) {
         if (STUDIES[picked]) showStart(picked);
         else showPicker();
-      } else {
-        showRunButton();
       }
     },
     isResultsPage: function () {
