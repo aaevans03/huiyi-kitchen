@@ -526,7 +526,8 @@
             if (at !== -1) {
               rest[i] = words[i].slice(0, at) + words[i].slice(at + name.length);
               hit = true;
-            } else if (zhLabel && (zhLabel.indexOf(w) === 0 || (w.length > 1 && zhLabel.indexOf(w) !== -1))) {
+            } else if (zhLabel && zhLabel.indexOf(w) !== -1) {
+              // Part of the label, even one character: 早 or 餐 → 早餐, 饭 → 米飯.
               rest[i] = "";
               hit = true;
             }
@@ -607,7 +608,9 @@
       }).filter(function (m) { return m.count > 0; }).slice(0, 6);
 
       options = [];
-      if (found.length) {
+      // The plain search row shows whenever something is typed, so a word that matches no
+      // filter (garlic, 饭) still shows how many recipes it finds.
+      if (input.value.trim()) {
         var query = input.value.trim();
         var qp = new URLSearchParams();
         qp.set("q", query);
